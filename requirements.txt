@@ -1,0 +1,14 @@
+﻿streamlit
+plotly
+pandas
+fpdf2
+psycopg2-binary
+SQLAlchemy
+bcrypt
+python-dotenv
+pypdf
+pdfplumber
+python-docx
+nltk
+scikit-learn
+sentence-transformers

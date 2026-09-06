@@ -1,0 +1,8 @@
+﻿__pycache__/
+*.env
+.env
+vault_env/
+storage/*
+!storage/.gitkeep
+logs/*
+!logs/.gitkeep
