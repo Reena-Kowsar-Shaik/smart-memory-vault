@@ -8,7 +8,6 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Semantic intent expansion dictionary
 INTENT_EXPANSIONS = {
     "hospital": ["doctor", "medical", "clinic", "health", "prescription", "appointment"],
     "clinic": ["doctor", "hospital", "health", "medicine", "appointment"],
@@ -45,10 +44,8 @@ class SemanticSearchEngine:
         if not memories or not query or not query.strip():
             return []
 
-        # Expand query with intent keywords
         enriched_query = self.expand_query(query)
 
-        # Build corpus by concatenating title, content, category, and tags
         corpus = [
             f"{m.get('title', '')} {m.get('content', '')} {m.get('category', '')} {' '.join(m.get('tags', []))}"
             for m in memories
@@ -62,12 +59,11 @@ class SemanticSearchEngine:
 
             results = []
             for idx, score in enumerate(similarities):
-                if score > 0.01:  # Low threshold to capture semantic intent
+                if score > 0.01:
                     mem_copy = memories[idx].copy()
                     mem_copy['similarity_score'] = round(float(score), 3)
                     results.append(mem_copy)
 
-            # Sort descending by similarity score
             results.sort(key=lambda x: x['similarity_score'], reverse=True)
             return results[:top_k]
 
