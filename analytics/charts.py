@@ -95,7 +95,7 @@ def create_importance_histogram(memories: list[dict]) -> go.Figure:
         height=320,
         margin=dict(l=20, r=20, t=40, b=40),
         plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(gridcolor="rgba(200,200,200,0.2)", allowstep=False, dtick=1)
+        yaxis=dict(gridcolor="rgba(200,200,200,0.2)", dtick=1)
     )
     return fig
 

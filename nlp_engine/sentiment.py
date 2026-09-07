@@ -7,10 +7,7 @@ import re
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
-try:
-    nltk.download('vader_lexicon', quiet=True)
-except Exception:
-    pass
+# VADER loaded safely with fallback
 
 URGENT_KEYWORDS = [
     "urgent", "asap", "emergency", "deadline", "immediately", "critical",
@@ -50,7 +47,17 @@ class SentimentAndImportanceEngine:
             scores = self.sia.polarity_scores(text)
             compound = scores['compound']
         else:
-            compound = 0.0
+            pos_words = {'good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'happy', 'joy', 'love', 'best', 'blessed', 'success', 'successful', 'achieved', 'achievement', 'peace', 'celebrate', 'fun', 'proud', 'awesome'}
+            neg_words = {'bad', 'terrible', 'horrible', 'awful', 'sad', 'depressed', 'unhappy', 'angry', 'pain', 'loss', 'fail', 'failed', 'failure', 'crisis', 'disaster', 'worried', 'stress', 'disappointed'}
+            words = set(re.findall(r'[a-z]+', text_lower))
+            pos_matches = len(words & pos_words)
+            neg_matches = len(words & neg_words)
+            if pos_matches > neg_matches:
+                compound = min(1.0, 0.4 + 0.2 * (pos_matches - neg_matches))
+            elif neg_matches > pos_matches:
+                compound = max(-1.0, -0.4 - 0.2 * (neg_matches - pos_matches))
+            else:
+                compound = 0.0
 
         if has_urgency:
             sentiment_label = "Urgent / Critical"

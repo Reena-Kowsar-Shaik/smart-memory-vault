@@ -51,16 +51,23 @@ def register_user(username: str, email: str, password: str) -> dict:
     if len(password) < 6:
         return {"success": False, "error": "Password must be at least 6 characters long."}
 
+    # Check if username is already taken
+    existing_user = UserRepository.get_by_username(username)
+    if existing_user:
+        return {"success": False, "error": "This username is already taken. Please choose another one."}
+
     # Check if email is already taken
-    existing = UserRepository.get_by_email(email)
-    if existing:
+    existing_email = UserRepository.get_by_email(email)
+    if existing_email:
         return {"success": False, "error": "An account with this email already exists."}
 
     # Hash and save
-    pwd_hash = hash_password(password)
-    new_user = UserRepository.create_user(username, email, pwd_hash)
-
-    return {"success": True, "user": new_user}
+    try:
+        pwd_hash = hash_password(password)
+        new_user = UserRepository.create_user(username, email, pwd_hash)
+        return {"success": True, "user": new_user}
+    except Exception as e:
+        return {"success": False, "error": f"Registration failed: {str(e)}"}
 
 
 def login_user(email: str, password: str) -> dict | None:

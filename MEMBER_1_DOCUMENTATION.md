@@ -1,0 +1,227 @@
+# 📖 Smart Digital Memory Vault
+## Member 1 Technical Documentation & Architecture Report
+
+---
+
+### 👤 Author: Member 1 (Project Lead & Core Backend Architect)
+**Project Title:** Smart Digital Memory Management System  
+**Database:** PostgreSQL (with SQLite testing fallback)  
+**Framework:** Python 3.10+ / SQLAlchemy 2.0 / Streamlit / Bcrypt  
+**Design Patterns:** Object-Oriented Programming (OOP), Repository Pattern, Context Manager, Layered Architecture  
+
+---
+
+## 📑 Executive Summary
+
+Member 1 is responsible for the foundation, data persistence, user security, and core entity modeling of the Smart Digital Memory Vault. 
+
+Without this module, no memories or documents can be stored, users cannot register or authenticate, and the application lacks transactional integrity and error safety.
+
+### Core Modules Delivered by Member 1:
+1. **`core/models.py`**: Relational database schemas and OOP entities using SQLAlchemy ORM.
+2. **`core/database.py`**: Database engine connection management, thread-safe session transactions, and CRUD repository classes (`MemoryRepository`, `UserRepository`).
+3. **`core/auth.py`**: Cryptographic password hashing (`bcrypt`), email validation (Regex), and authentication logic.
+4. **`core/logger.py`**: Centralized rotating file logging (`logs/app.log`) and console output for audit trails.
+5. **`core/exceptions.py`**: Custom domain exception hierarchy demonstrating OOP inheritance.
+6. **`test_member1.py`**: Automated unit and integration test suite validating end-to-end functionality.
+
+---
+
+## 🏗️ 1. System Architecture & Relational Schema
+
+### Database Entity Relationship (ER) Diagram
+
+```
+       ┌───────────────────────────────┐
+       │             users             │
+       ├───────────────────────────────┤
+       │ PK  id            INTEGER     │
+       │     username      VARCHAR(50) │
+       │     email         VARCHAR(100)│ (Indexed, Unique)
+       │     password_hash VARCHAR(255)│ (Bcrypt Hash)
+       │     created_at    DATETIME    │
+       └──────────────┬────────────────┘
+                      │
+                      │ 1-to-Many
+                      ├───────────────────────────────────────┐
+                      │                                       │
+       ┌──────────────▼────────────────┐       ┌──────────────▼────────────────┐
+       │           memories            │       │           documents           │
+       ├───────────────────────────────┤       ├───────────────────────────────┤
+       │ PK  id          INTEGER       │       │ PK  id          INTEGER       │
+       │ FK  user_id     INTEGER       │       │ FK  user_id     INTEGER       │
+       │     title       VARCHAR(200)  │       │     filename    VARCHAR(255)  │
+       │     description TEXT          │       │     file_path   VARCHAR(500)  │
+       │     category    VARCHAR(50)   │       │     file_size   INTEGER       │
+       │     summary     TEXT          │       │     extracted_txt TEXT        │
+       │     importance  INTEGER (1-5) │       │     file_hash   VARCHAR(64)   │
+       │     tags        JSON (Array)  │       │     uploaded_at DATETIME      │
+       │ FK  document_id INTEGER (Opt) ├───────┤                               │
+       │     created_at  DATETIME      │  FK   └───────────────────────────────┘
+       │     updated_at  DATETIME      │
+       └───────────────────────────────┘
+```
+
+---
+
+## 💻 2. In-Depth Code Explanation
+
+### 📄 File 1: `core/models.py` (OOP Data Models & ORM)
+
+#### 1. Why SQLAlchemy Declarative Base?
+```python
+Base = declarative_base()
+```
+`declarative_base()` is a factory function that produces a base class. Every model (`User`, `Memory`, `Document`) inherits from this `Base`, binding Python classes directly to database tables without writing raw SQL `CREATE TABLE` strings.
+
+#### 2. The `User` Class
+- **`__tablename__ = "users"`**: Defines the physical table name in PostgreSQL.
+- **`email = Column(String(100), nullable=False, unique=True, index=True)`**:
+  - `unique=True`: Enforces database-level constraint preventing duplicate emails.
+  - `index=True`: Creates a B-Tree index in PostgreSQL, making authentication queries O(log n) instead of a full table scan O(n).
+- **`memories = relationship("Memory", back_populates="user", cascade="all, delete-orphan")`**:
+  - Implements **OOP Association**.
+  - `cascade="all, delete-orphan"`: If a user account is deleted, all their memories are automatically purged, preventing orphaned records.
+- **`to_dict()` Method**:
+  - Encapsulates object serialization, converting internal SQLAlchemy attributes into a JSON-serializable Python dictionary for the Streamlit UI.
+
+#### 3. The `Document` Class
+- Stores metadata for uploaded PDFs, Word documents, and text files.
+- **`file_path`**: Stores the relative path on the disk (e.g., `storage/user_1/receipt.pdf`). File binaries are stored on the file system, keeping PostgreSQL fast and responsive.
+- **`file_hash`**: Stores a SHA-256 cryptographic hash generated by Member 2 to detect duplicate uploads.
+
+#### 4. The `Memory` Class
+- **`importance = Column(Integer, default=1)`**: Stores an urgency rating (1 to 5) determined by Member 3's NLP engine or manual user selection.
+- **`tags = Column(JSON, default=list)`**: Utilizes PostgreSQL's native JSON capabilities to store dynamic arrays of tags (e.g. `["#Python", "#Project"]`).
+
+---
+
+### 📄 File 2: `core/database.py` (Connection & Repository Pattern)
+
+#### 1. Resilient Dual-Engine Strategy (PostgreSQL + SQLite Fallback)
+```python
+try:
+    engine = create_engine(PG_DATABASE_URL, pool_pre_ping=True)
+    with engine.connect() as conn:
+        pass
+    print("✅ Connected to PostgreSQL successfully!")
+except Exception as e:
+    engine = create_engine(SQLITE_FALLBACK_URL, connect_args={"check_same_thread": False})
+```
+- **The Problem:** In student and collaborative environments, not all developers have PostgreSQL installed or configured with identical credentials.
+- **The Solution:** The engine tests the PostgreSQL connection. If reachable, it connects to PostgreSQL. If the server is offline or credentials fail, it seamlessly falls back to a local SQLite database (`memory_vault.db`). No teammate is ever blocked.
+
+#### 2. The Context Manager (`get_db`)
+```python
+@contextmanager
+def get_db():
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+```
+- **ACID Compliance Guarantee:**
+  - **Atomicity:** All operations within the `with get_db() as session:` block succeed together. If an exception occurs, `session.rollback()` automatically aborts changes.
+  - **Resource Cleanup:** `session.close()` in the `finally` block ensures database connections are returned to the connection pool, preventing connection leaks.
+
+#### 3. The Repository Pattern (`MemoryRepository` & `UserRepository`)
+Encapsulates data access logic away from the presentation layer (Streamlit). Member 4 calls clean Python methods instead of writing SQL queries:
+- `create_memory(...)`: Inserts a memory and flushes to retrieve the auto-generated primary key.
+- `get_user_memories(user_id)`: Fetches records sorted by `created_at DESC` (newest first).
+- `delete_memory(memory_id, user_id)`: Verifies user ownership before deletion, preventing cross-tenant data tampering.
+- `update_memory(memory_id, user_id, **kwargs)`: Dynamically updates fields passed via keyword arguments.
+
+---
+
+### 📄 File 3: `core/auth.py` (Security & Encryption Engine)
+
+#### 1. Password Hashing with Bcrypt
+```python
+def hash_password(plain_password: str) -> str:
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(plain_password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+```
+- **Salting:** `bcrypt.gensalt()` generates a random 128-bit cryptographic salt. This ensures that even if two users have identical passwords, their hashes are completely distinct.
+- **Protection Against Attacks:** Defeats pre-computed rainbow table attacks and GPU-accelerated brute force.
+- **Verification:** `bcrypt.checkpw` extracts the salt from the stored hash, hashes the candidate password with that exact salt, and performs constant-time comparison to prevent timing attacks.
+
+#### 2. Email Validation via Regex
+```python
+pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+return bool(re.match(pattern, email.strip()))
+```
+- Ensures syntactic correctness of emails prior to database insertion.
+- Enforces minimum constraints: username >= 3 characters, password >= 6 characters.
+
+---
+
+### 📄 File 4: `core/logger.py` (Logging & Audit Trail)
+
+```python
+file_handler = RotatingFileHandler(
+    LOG_FILE, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8"
+)
+```
+- **Rotating Handler:** Limits log files to 2 MB and maintains up to 3 backup archives (`app.log.1`, `app.log.2`). This prevents server disk exhaustion.
+- **Multi-Destination:** Logs to both console (stdout) for real-time developer debugging and `logs/app.log` for security auditing.
+
+---
+
+### 📄 File 5: `core/exceptions.py` (OOP Exception Hierarchy)
+
+Demonstrates **Inheritance** and centralized error propagation:
+```python
+class MemoryVaultException(Exception):
+    """Root base exception for domain errors."""
+
+class DatabaseConnectionError(MemoryVaultException): ...
+class UserAlreadyExistsError(MemoryVaultException): ...
+class AuthenticationError(MemoryVaultException): ...
+class MemoryNotFoundError(MemoryVaultException): ...
+class DocumentProcessingError(MemoryVaultException): ...
+class ValidationError(MemoryVaultException): ...
+```
+- The frontend can catch `MemoryVaultException` to display user-friendly error banners in Streamlit without exposing raw Python stack traces.
+
+---
+
+## 🧪 3. Verification & Test Suite (`test_member1.py`)
+
+The automated test script validates the following pipeline:
+
+| Test Step | Tested Operation | Expected Outcome | Result |
+| :--- | :--- | :--- | :--- |
+| **Step 1** | `init_db()` | All tables created in PostgreSQL / SQLite | ✅ Passed |
+| **Step 2** | `register_user("testuser", ...)` | Hashes password, returns User dictionary with ID 1 | ✅ Passed |
+| **Step 3** | Duplicate Registration | Rejects duplicate email, returns `{'success': False}` | ✅ Passed |
+| **Step 4** | `login_user(...)` | Validates hash on correct password; returns `None` on wrong password | ✅ Passed |
+| **Step 5** | `MemoryRepository.create_memory(...)` | Inserts memory with category, importance, tags | ✅ Passed |
+| **Step 6** | `MemoryRepository.get_user_memories(1)` | Retrieves memories for User 1 in descending order | ✅ Passed |
+
+---
+
+## 🎯 4. Viva / Defense Preparation Q&A
+
+### Q1: What makes your database architecture secure?
+> **Answer:** We enforce three layers of security:
+> 1. Passwords are salted and hashed with **Bcrypt** before reaching the database. Plaintext passwords are never logged or stored.
+> 2. Database interactions use **SQLAlchemy ORM parameterized queries**, completely eliminating SQL Injection vulnerabilities.
+> 3. User operations require explicit `user_id` verification to prevent unauthorized access across accounts.
+
+### Q2: What OOP concepts did you demonstrate?
+> **Answer:**
+> - **Encapsulation:** Internal database queries and session states are hidden inside `MemoryRepository` and `UserRepository`.
+> - **Inheritance:** All database entities inherit from SQLAlchemy's `Base`, and all domain exceptions inherit from `MemoryVaultException`.
+> - **Polymorphism:** Methods such as `to_dict()` and `__repr__()` provide customized representations for each entity.
+
+### Q3: How do the other team members integrate with your module?
+> **Answer:**
+> - **Member 2 (Document Pipeline):** Uses `Document` model and passes extracted file paths and hashes to `create_document(...)`.
+> - **Member 3 (AI/NLP):** Supplies the predicted `category`, generated `summary`, `importance` score, and `tags` to `create_memory(...)`.
+> - **Member 4 (Streamlit UI):** Calls `register_user()`, `login_user()`, and `get_user_memories()` to populate the dashboard and charts.

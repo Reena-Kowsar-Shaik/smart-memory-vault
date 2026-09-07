@@ -103,5 +103,5 @@ class TestNLPEngine(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    print("\n🔍 Running Member 3 NLP Engine Test Suite...\n" + "=" * 50)
+    print("\n[TEST] Running Member 3 NLP Engine Test Suite...\n" + "=" * 50)
     unittest.main(verbosity=2)

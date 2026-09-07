@@ -44,4 +44,4 @@ if logged_user:
     for m in memories:
         print(f" -> [{m['category']}] {m['title']} (Importance: {m['importance']}/5)")
 
-print("\n🎉 ALL TESTS COMPLETED SUCCESSFULLY!")
+print("\n[SUCCESS] ALL TESTS COMPLETED SUCCESSFULLY!")

@@ -7,12 +7,14 @@ from .categorizer import MemoryCategorizer
 from .sentiment import SentimentAndImportanceEngine
 from .summarizer import TextSummarizer
 from .search_engine import SemanticSearchEngine
+from .quiz_generator import StudyQuizEngine
 
 # Instantiate singleton engines
 categorizer = MemoryCategorizer()
 sentiment_engine = SentimentAndImportanceEngine()
 summarizer = TextSummarizer()
 search_engine = SemanticSearchEngine()
+quiz_engine = StudyQuizEngine()
 
 def process_memory(text: str, title: str = "") -> dict:
     """

@@ -4,9 +4,9 @@ import hashlib
 from pathlib import Path
 from typing import Tuple, Dict, Any
 
-# Supported extensions and maximum upload size (15 MB)
+# Supported extensions and maximum upload size (100 MB)
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
-MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB
+MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
 STORAGE_BASE_DIR = Path("storage")
 
 def sanitize_filename(filename: str) -> str:

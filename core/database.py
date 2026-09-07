@@ -31,18 +31,18 @@ try:
     # Test connection
     with engine.connect() as conn:
         pass
-    print("✅ Connected to PostgreSQL successfully!")
+    print("[OK] Connected to PostgreSQL successfully!")
 except Exception as e:
-    print(f"⚠️ PostgreSQL connection failed ({e}). Using local SQLite for seamless testing.")
+    print(f"[WARN] PostgreSQL connection failed ({e}). Using local SQLite for seamless testing.")
     engine = create_engine(SQLITE_FALLBACK_URL, connect_args={"check_same_thread": False})
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 def init_db():
     """Create all database tables if they do not exist."""
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables initialized!")
+    print("[OK] Database tables initialized!")
 
 
 @contextmanager
@@ -104,6 +104,13 @@ class MemoryRepository:
             return False
 
     @staticmethod
+    def delete_all_user_memories(user_id: int) -> int:
+        """Delete all memories belonging to a user."""
+        with get_db() as session:
+            count = session.query(Memory).filter(Memory.user_id == user_id).delete()
+            return count
+
+    @staticmethod
     def update_memory(memory_id: int, user_id: int, **kwargs) -> bool:
         """Update fields of an existing memory."""
         with get_db() as session:
@@ -125,6 +132,11 @@ class UserRepository:
     def get_by_email(email: str):
         with get_db() as session:
             return session.query(User).filter(User.email == email.lower().strip()).first()
+
+    @staticmethod
+    def get_by_username(username: str):
+        with get_db() as session:
+            return session.query(User).filter(User.username == username.strip()).first()
 
     @staticmethod
     def create_user(username: str, email: str, password_hash: str) -> dict:
