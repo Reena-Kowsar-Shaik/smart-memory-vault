@@ -16,6 +16,8 @@ try:
 except ImportError:
     docx = None
 
+from .ocr_extractor import extract_from_image
+
 def extract_from_pdf(file_bytes: bytes) -> Dict[str, Any]:
     """Extracts text and page count from multi-page PDFs."""
     pages_text = []
@@ -86,8 +88,8 @@ def extract_from_txt(file_bytes: bytes) -> Dict[str, Any]:
             continue
     return {"text": "", "page_count": 0, "error": "Unable to decode text with standard encodings."}
 
-def extract_text(file_bytes: bytes, file_extension: str) -> Dict[str, Any]:
-    """Main routing function to extract text according to file extension."""
+def extract_text(file_bytes: bytes, file_extension: str, filename: str = "") -> Dict[str, Any]:
+    """Main routing function to extract text according to file extension (PDF, DOCX, TXT, MD, Images)."""
     ext = file_extension.lower()
     if ext == ".pdf":
         return extract_from_pdf(file_bytes)
@@ -95,5 +97,7 @@ def extract_text(file_bytes: bytes, file_extension: str) -> Dict[str, Any]:
         return extract_from_docx(file_bytes)
     elif ext in [".txt", ".md"]:
         return extract_from_txt(file_bytes)
+    elif ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"]:
+        return extract_from_image(file_bytes, filename=filename)
     else:
         return {"text": "", "page_count": 0, "error": f"Unsupported format: {ext}"}

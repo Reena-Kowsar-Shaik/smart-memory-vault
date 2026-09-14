@@ -29,7 +29,7 @@ class TextSummarizer:
         if len(sentences) <= max_sentences:
             return text.strip()
 
-        words = [w.lower() for w in re.findall(r'\b[a-zA-Z]{3,}\b', text) if w.lower() not in self.stop_words]
+        words = [w.lower() for w in re.findall(r'\b\w{2,}\b', text, re.UNICODE) if w.lower() not in self.stop_words]
         if not words:
             return " ".join(sentences[:max_sentences])
 
@@ -39,7 +39,7 @@ class TextSummarizer:
 
         sentence_scores = {}
         for idx, sent in enumerate(sentences):
-            sent_words = re.findall(r'\b[a-zA-Z]{3,}\b', sent.lower())
+            sent_words = re.findall(r'\b\w{2,}\b', sent.lower(), re.UNICODE)
             sentence_scores[idx] = sum(norm_freq.get(w, 0) for w in sent_words)
 
         # Select top scoring sentences and maintain chronological order

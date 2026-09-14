@@ -10,17 +10,21 @@ Faithfully implements the visual architecture blueprint:
 
 import os
 import io
+import re
 import json
 import base64
+import random
+import textwrap
 from datetime import datetime, timedelta
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 
 # Core & Backend Imports
 from core.database import init_db, MemoryRepository, UserRepository
 from core.auth import login_user, register_user
-from pipeline import process_document
-from nlp_engine import process_memory, search_engine, categorizer, sentiment_engine, summarizer, quiz_engine
+from pipeline import process_document, process_url
+from nlp_engine import process_memory, search_engine, categorizer, sentiment_engine, summarizer, quiz_engine, rag_engine, voice_transcriber
 
 # Analytics & Reporting Imports
 from analytics.charts import (
@@ -34,6 +38,7 @@ from analytics.charts import (
 from analytics.timeline import build_timeline_dataframe, create_timeline_chart, get_activity_summary
 from analytics.reporter import export_to_csv, export_to_json, generate_pdf_report
 from analytics.knowledge_graph import create_interactive_knowledge_graph
+from analytics.streak_tracker import calculate_user_streaks, calculate_achievement_badges
 
 # -----------------------------------------------------------------------------
 # 1. Page Configuration & Custom CSS Styling
@@ -47,431 +52,323 @@ st.set_page_config(
 
 CUSTOM_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 
     html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* Ambient Dark Obsidian Gradient Theme */
+    .stApp {
+        background: radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.09) 0%, transparent 45%),
+                    radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.07) 0%, transparent 45%),
+                    radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.04) 0%, transparent 55%),
+                    #080C14;
+        color: #F8FAFC;
     }
 
     .main .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 3rem;
+        padding-top: 1.25rem;
+        padding-bottom: 3.5rem;
         max-width: 96%;
     }
 
-    /* Gradient Header Hero */
-    .hero-banner {
-        background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 45%, #312E81 80%, #4338CA 100%);
+    /* Modern Glassmorphic Top Hero Header */
+    .dash-hero-glass {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 27, 75, 0.75) 50%, rgba(15, 23, 42, 0.9) 100%);
+        border: 1px solid rgba(129, 140, 248, 0.25);
         border-radius: 18px;
-        padding: 28px 32px;
-        color: #FFFFFF;
-        margin-bottom: 24px;
-        box-shadow: 0 12px 30px -5px rgba(99, 102, 241, 0.3), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        position: relative;
-        overflow: hidden;
-    }
-    .hero-banner h1 {
-        color: #FFFFFF !important;
-        margin: 0 0 6px 0;
-        font-weight: 800;
-        font-size: 2.3rem;
-        letter-spacing: -0.02em;
-    }
-    .hero-banner p {
-        color: #E0E7FF !important;
-        font-size: 1.02rem;
-        margin: 0;
-        max-width: 850px;
-        line-height: 1.5;
-    }
-
-    /* AI Daily Digest Pill Box */
-    .ai-digest-box {
-        background: rgba(30, 27, 75, 0.7);
-        border: 1px solid rgba(165, 180, 252, 0.35);
-        border-radius: 14px;
-        padding: 16px 20px;
-        margin-top: 16px;
-        backdrop-filter: blur(10px);
+        padding: 16px 22px;
+        margin-bottom: 16px;
         display: flex;
-        align-items: flex-start;
-        gap: 14px;
+        justify-content: space-between;
+        align-items: center;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.45), 0 0 20px -3px rgba(99, 102, 241, 0.2);
     }
-    .ai-digest-icon {
-        font-size: 1.6rem;
-        background: rgba(99, 102, 241, 0.25);
-        padding: 8px 12px;
-        border-radius: 10px;
-        border: 1px solid rgba(99, 102, 241, 0.4);
+    .hero-avatar-ring {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #6366F1 0%, #EC4899 50%, #8B5CF6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.45rem;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.45);
+        flex-shrink: 0;
     }
-    .ai-digest-title {
-        font-size: 0.88rem;
+    .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10B981;
+        box-shadow: 0 0 10px #10B981, 0 0 20px #10B981;
+        animation: pulseAnimation 2s infinite;
+        margin-right: 6px;
+    }
+    @keyframes pulseAnimation {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .sync-status-badge {
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        border-radius: 9999px;
+        padding: 5px 14px;
+        font-size: 0.76rem;
         font-weight: 700;
-        color: #A5B4FC;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 4px;
-    }
-    .ai-digest-body {
-        font-size: 0.95rem;
-        color: #F8FAFC;
-        line-height: 1.45;
-        margin: 0;
+        color: #34D399;
+        display: inline-flex;
+        align-items: center;
+        letter-spacing: 0.02em;
     }
 
-    /* Metric Glass Cards */
+    /* Metric Glass Cards - Vibrant Glowing Top Neon Bar */
     .kpi-card {
-        background: rgba(17, 24, 39, 0.85);
-        border: 1px solid rgba(55, 65, 81, 0.8);
-        border-radius: 16px;
-        padding: 20px;
+        background: linear-gradient(145deg, rgba(17, 24, 39, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 14px 18px;
         text-align: left;
         position: relative;
         overflow: hidden;
-        backdrop-filter: blur(12px);
+        backdrop-filter: blur(14px);
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35);
     }
     .kpi-card:hover {
         transform: translateY(-3px);
-        border-color: rgba(99, 102, 241, 0.7);
-        box-shadow: 0 12px 25px -5px rgba(99, 102, 241, 0.25);
+        border-color: rgba(99, 102, 241, 0.6);
+        box-shadow: 0 12px 28px -6px rgba(99, 102, 241, 0.25), 0 0 15px rgba(99, 102, 241, 0.15);
     }
     .kpi-card::before {
         content: "";
         position: absolute;
         top: 0;
         left: 0;
-        width: 4px;
-        height: 100%;
-        background: #6366F1;
+        right: 0;
+        height: 3.5px;
     }
-    .kpi-card.purple::before { background: linear-gradient(180deg, #A855F7, #6366F1); }
-    .kpi-card.blue::before { background: linear-gradient(180deg, #38BDF8, #3B82F6); }
-    .kpi-card.emerald::before { background: linear-gradient(180deg, #34D399, #059669); }
-    .kpi-card.amber::before { background: linear-gradient(180deg, #FBBF24, #D97706); }
-    .kpi-card.rose::before { background: linear-gradient(180deg, #FB7185, #E11D48); }
+    .kpi-card.purple::before { background: linear-gradient(90deg, #A855F7, #6366F1); }
+    .kpi-card.blue::before { background: linear-gradient(90deg, #38BDF8, #3B82F6); }
+    .kpi-card.emerald::before { background: linear-gradient(90deg, #34D399, #059669); }
+    .kpi-card.amber::before { background: linear-gradient(90deg, #FBBF24, #EA580C); }
 
+    .kpi-icon-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        margin-bottom: 6px;
+    }
     .kpi-label {
-        font-size: 0.82rem;
+        font-size: 0.74rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: #9CA3AF;
-        margin-bottom: 6px;
+        color: #94A3B8;
+        margin-bottom: 2px;
     }
     .kpi-val {
-        font-size: 2.3rem;
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.75rem;
         font-weight: 800;
         color: #FFFFFF;
-        line-height: 1;
-        margin-bottom: 6px;
+        line-height: 1.15;
+        margin-bottom: 2px;
+        background: linear-gradient(135deg, #FFFFFF 30%, #CBD5E1 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     .kpi-sub {
-        font-size: 0.8rem;
-        color: #94A3B8;
+        font-size: 0.72rem;
+        color: #64748B;
+        font-weight: 500;
     }
 
-    /* Memory Card Styles */
-    .mem-card {
-        background: rgba(17, 24, 39, 0.9);
-        border: 1px solid rgba(55, 65, 81, 0.7);
+    /* Button Enhancements */
+    div.stButton > button {
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.88rem;
+        padding: 0.5rem 1rem;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: linear-gradient(145deg, #1E293B, #0F172A);
+        color: #F1F5F9;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        border-color: #6366F1;
+        box-shadow: 0 6px 18px -3px rgba(99, 102, 241, 0.4);
+        color: #FFFFFF;
+    }
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #6366F1 0%, #4F46E5 50%, #4338CA 100%) !important;
+        border: 1px solid rgba(165, 180, 252, 0.4) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+    }
+    div.stButton > button[kind="primary"]:hover {
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.55) !important;
+        transform: translateY(-2px);
+    }
+
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: transparent;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: 4px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px 8px 0 0;
+        padding: 8px 16px;
+        font-weight: 700;
+        font-size: 0.88rem;
+        color: #94A3B8;
+        background: transparent;
+        transition: all 0.2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #E2E8F0;
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .stTabs [aria-selected="true"] {
+        color: #818CF8 !important;
+        border-bottom: 2.5px solid #6366F1 !important;
+        background: rgba(99, 102, 241, 0.08) !important;
+    }
+
+    /* Form Fields & Dropzone Styling */
+    div[data-testid="stFileUploader"] {
+        background: rgba(15, 23, 42, 0.65);
+        border: 1.5px dashed rgba(99, 102, 241, 0.4);
         border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 14px;
-        transition: all 0.2s ease-in-out;
-        backdrop-filter: blur(8px);
+        padding: 12px;
+        transition: border-color 0.2s ease;
+    }
+    div[data-testid="stFileUploader"]:hover {
+        border-color: #818CF8;
+        box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+    }
+    .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
+        background-color: #0F172A !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 10px !important;
+        color: #F8FAFC !important;
+        font-size: 0.9rem !important;
+    }
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #6366F1 !important;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3) !important;
+    }
+
+    /* Memory Card Modern Styles */
+    .mem-card {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        transition: all 0.22s ease-in-out;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 4px 16px -3px rgba(0, 0, 0, 0.35);
     }
     .mem-card:hover {
-        border-color: rgba(99, 102, 241, 0.6);
-        background: rgba(26, 34, 52, 0.95);
+        border-color: rgba(99, 102, 241, 0.5);
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.3);
-    }
-    .mem-card-title {
-        font-size: 1.08rem;
-        font-weight: 700;
-        color: #F8FAFC;
-        margin: 0;
+        box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.25);
     }
     .mem-tag-chip {
         display: inline-block;
-        background: rgba(99, 102, 241, 0.15);
+        background: rgba(99, 102, 241, 0.14);
         color: #C7D2FE;
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        font-size: 0.74rem;
+        border: 1px solid rgba(99, 102, 241, 0.28);
+        font-size: 0.72rem;
         font-weight: 600;
         padding: 3px 9px;
         border-radius: 6px;
         margin-right: 5px;
-        margin-top: 4px;
+        margin-top: 3px;
+        font-family: 'JetBrains Mono', monospace;
     }
     .mem-cat-badge {
         display: inline-block;
-        padding: 4px 11px;
-        font-size: 0.74rem;
-        font-weight: 700;
+        padding: 3px 10px;
+        font-size: 0.72rem;
+        font-weight: 800;
         border-radius: 9999px;
         color: white;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-    }
-
-    /* Urgent Alert Card */
-    .urgent-banner-card {
-        background: linear-gradient(135deg, rgba(220, 38, 38, 0.15), rgba(185, 28, 28, 0.05));
-        border: 1px solid rgba(239, 68, 68, 0.4);
-        border-radius: 12px;
-        padding: 12px 16px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        letter-spacing: 0.02em;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     }
 
     /* Flashcard Study Styles */
     .flashcard-frame {
-        background: linear-gradient(145deg, #1E1B4B, #0F172A);
-        border: 2px solid #6366F1;
-        border-radius: 20px;
-        padding: 36px 32px;
+        background: linear-gradient(145deg, rgba(30, 27, 75, 0.95), rgba(15, 23, 42, 0.98));
+        border: 1.5px solid rgba(99, 102, 241, 0.6);
+        border-radius: 18px;
+        padding: 28px 32px;
         text-align: center;
-        min-height: 240px;
+        min-height: 150px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        box-shadow: 0 16px 32px -8px rgba(99, 102, 241, 0.35);
-        margin: 20px 0;
+        box-shadow: 0 12px 35px -5px rgba(99, 102, 241, 0.4);
+        margin: 14px 0;
         transition: all 0.3s ease;
     }
     .flashcard-topic-badge {
         font-size: 0.8rem;
         font-weight: 800;
         text-transform: uppercase;
-        color: #A5B4FC;
+        color: #C7D2FE;
+        background: rgba(99, 102, 241, 0.25);
+        border: 1px solid rgba(129, 140, 248, 0.4);
+        padding: 4px 14px;
+        border-radius: 20px;
         letter-spacing: 0.08em;
         margin-bottom: 12px;
+        display: inline-block;
     }
     .flashcard-main-text {
-        font-size: 1.35rem;
+        font-size: 1.2rem;
         font-weight: 700;
         color: #FFFFFF;
-        line-height: 1.45;
+        line-height: 1.5;
         max-width: 700px;
     }
     .flashcard-hint {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         color: #94A3B8;
-        margin-top: 16px;
+        margin-top: 14px;
         font-style: italic;
     }
 
-    /* Quiz Box Styles */
-    .quiz-question-card {
-        background: #1E293B;
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 20px 24px;
-        margin-bottom: 18px;
-    }
-    .quiz-num {
-        font-weight: 800;
-        color: #818CF8;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-        margin-bottom: 6px;
-    }
-    .quiz-q-text {
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: #F8FAFC;
-        margin-bottom: 12px;
-    }
-
-    /* Visual Flow Infographic Styles */
-    .flow-container {
-        background: rgba(17, 24, 39, 0.85);
-        border: 1px solid rgba(99, 102, 241, 0.25);
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-bottom: 28px;
-        backdrop-filter: blur(12px);
-    }
-    .flow-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #F3F4F6;
-        text-align: center;
-        margin-bottom: 18px;
-        letter-spacing: -0.01em;
-    }
-    .flow-step-card {
-        background: #1F2937;
-        border: 1px solid #374151;
+    /* Celebration Banner */
+    .celebration-toast {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.15) 100%);
+        border: 1.5px solid #10B981;
         border-radius: 12px;
-        padding: 14px 12px;
-        text-align: center;
-        height: 100%;
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-    .flow-step-card:hover {
-        transform: translateY(-3px);
-        border-color: #6366F1;
-        box-shadow: 0 8px 16px -4px rgba(99, 102, 241, 0.2);
-    }
-    .flow-step-num {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        background: #6366F1;
-        color: white;
-        border-radius: 50%;
-        font-size: 0.8rem;
-        font-weight: 700;
-        margin-bottom: 8px;
-    }
-    .flow-step-title {
-        font-size: 0.92rem;
-        font-weight: 700;
-        color: #FFFFFF;
-        margin-bottom: 6px;
-    }
-    .flow-step-desc {
-        font-size: 0.76rem;
-        color: #9CA3AF;
-        line-height: 1.35;
-        margin: 0;
-    }
-    .flow-step-items {
+        padding: 12px 18px;
+        margin-bottom: 14px;
         display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        justify-content: center;
-        margin-top: 8px;
-    }
-    .flow-pill {
-        background: rgba(99, 102, 241, 0.15);
-        color: #A5B4FC;
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        border-radius: 9999px;
-        font-size: 0.68rem;
-        padding: 2px 7px;
-        font-weight: 600;
-    }
-
-    /* Detail Inspector Box */
-    .detail-inspector {
-        background: #111827;
-        border: 1px solid #374151;
-        border-radius: 14px;
-        padding: 22px;
-        position: sticky;
-        top: 20px;
-    }
-    .detail-inspector h3 {
-        color: #FFFFFF;
-        margin-top: 0;
-        font-weight: 700;
-        font-size: 1.25rem;
-    }
-    .detail-field {
-        margin-bottom: 12px;
-    }
-    .detail-field-label {
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: #9CA3AF;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 4px;
-    }
-    .detail-field-val {
-        font-size: 0.9rem;
-        color: #E5E7EB;
-    }
-
-    /* Timeline Vertical Component */
-    .timeline-wrapper {
-        position: relative;
-        padding: 10px 0 10px 24px;
-        border-left: 2px solid #374151;
-        margin-left: 16px;
-    }
-    .timeline-node {
-        position: relative;
-        margin-bottom: 24px;
-    }
-    .timeline-node::before {
-        content: "";
-        position: absolute;
-        left: -31px;
-        top: 4px;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: #6366F1;
-        border: 2px solid #111827;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
-    }
-    .timeline-date-badge {
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: #A5B4FC;
-        margin-bottom: 4px;
-        letter-spacing: 0.02em;
-    }
-
-    /* Key Features Bottom Strip */
-    .features-strip {
-        background: #111827;
-        border: 1px solid #1F2937;
-        border-radius: 14px;
-        padding: 18px 22px;
-        margin-top: 40px;
-    }
-    .features-strip-title {
-        font-size: 0.95rem;
-        font-weight: 800;
-        color: #F3F4F6;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 12px;
-    }
-    .features-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        align-items: center;
         gap: 12px;
+        box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.35);
+        animation: toastGlow 2s infinite alternate;
     }
-    .feature-chip {
-        background: #1F2937;
-        border: 1px solid #374151;
-        border-radius: 10px;
-        padding: 10px 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: #E5E7EB;
-        transition: border-color 0.15s ease;
-    }
-    .feature-chip:hover {
-        border-color: #6366F1;
-    }
-
-    /* Entity chips */
-    .entity-tag {
-        display: inline-block;
-        background: rgba(59, 130, 246, 0.12);
-        color: #93C5FD;
-        border: 1px solid rgba(59, 130, 246, 0.3);
-        border-radius: 6px;
-        font-size: 0.75rem;
-        padding: 2px 7px;
-        margin: 2px 3px 2px 0;
-        font-family: 'JetBrains Mono', monospace;
+    @keyframes toastGlow {
+        from { box-shadow: 0 0 10px rgba(16, 185, 129, 0.2); }
+        to { box-shadow: 0 0 25px rgba(16, 185, 129, 0.5); }
     }
 </style>
 """
@@ -512,6 +409,157 @@ if "chat_messages" not in st.session_state:
 
 if "filter_tag" not in st.session_state:
     st.session_state["filter_tag"] = "All"
+
+
+def render_html(html_str: str):
+    """Renders HTML in Streamlit cleanly without indentation or blank line issues."""
+    clean_lines = [line.strip() for line in html_str.strip().splitlines() if line.strip()]
+    st.markdown("\n".join(clean_lines), unsafe_allow_html=True)
+
+
+def trigger_celebration_blast(balloons: bool = True):
+    """Triggers high-energy confetti cannon particle fireworks blast and balloons."""
+    if balloons:
+        st.balloons()
+    confetti_html = """
+    <div id="confetti-blast-root" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:999999;"></div>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script>
+        function launchFireworksBlast() {
+            var targetWin = window.parent || window;
+            var cFunc = (targetWin.confetti) ? targetWin.confetti : confetti;
+            
+            if (cFunc) {
+                // High-velocity center explosive blast
+                cFunc({
+                    particleCount: 160,
+                    spread: 100,
+                    origin: { y: 0.6 },
+                    colors: ['#6366F1', '#EC4899', '#38BDF8', '#10B981', '#F59E0B', '#A855F7']
+                });
+
+                // Left Cannon
+                setTimeout(function() {
+                    cFunc({
+                        particleCount: 90,
+                        angle: 60,
+                        spread: 65,
+                        origin: { x: 0.05, y: 0.75 },
+                        colors: ['#6366F1', '#38BDF8', '#10B981']
+                    });
+                }, 200);
+
+                // Right Cannon
+                setTimeout(function() {
+                    cFunc({
+                        particleCount: 90,
+                        angle: 120,
+                        spread: 65,
+                        origin: { x: 0.95, y: 0.75 },
+                        colors: ['#EC4899', '#F59E0B', '#A855F7']
+                    });
+                }, 350);
+            }
+        }
+        launchFireworksBlast();
+    </script>
+    """
+    try:
+        components.html(confetti_html, height=1, width=1)
+    except Exception:
+        pass
+
+
+def get_memory_visual_meta(mem: dict) -> dict:
+    title = (mem.get("title") or "").lower()
+    tags = [t.lower() for t in (mem.get("tags") or [])]
+    cat = (mem.get("category") or "General").lower()
+
+    if any(k in title or k in tags for k in ["youtube", "video", "yt", "url_ingestion", "watch", "hiring", "accenture", "http", "www."]):
+        return {
+            "type_name": "YouTube / Web",
+            "icon": "🎬",
+            "badge_bg": "rgba(239, 68, 68, 0.18)",
+            "badge_color": "#F87171",
+            "badge_border": "rgba(239, 68, 68, 0.45)",
+            "card_border_left": "#EF4444",
+            "card_bg": "linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(239, 68, 68, 0.22)",
+            "icon_color": "#EF4444"
+        }
+    elif any(k in title or k in tags for k in ["image", "ocr", "jpg", "jpeg", "png", "photo", "whatsapp image", "whiteboard", "certificate"]):
+        return {
+            "type_name": "Image & OCR",
+            "icon": "🖼️",
+            "badge_bg": "rgba(6, 182, 212, 0.18)",
+            "badge_color": "#38BDF8",
+            "badge_border": "rgba(6, 182, 212, 0.45)",
+            "card_border_left": "#06B6D4",
+            "card_bg": "linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(6, 182, 212, 0.22)",
+            "icon_color": "#06B6D4"
+        }
+    elif any(k in title or k in tags for k in ["voice", "audio", "mic", "speech", "recording"]):
+        return {
+            "type_name": "Voice Recording",
+            "icon": "🎙️",
+            "badge_bg": "rgba(168, 85, 247, 0.18)",
+            "badge_color": "#C084FC",
+            "badge_border": "rgba(168, 85, 247, 0.45)",
+            "card_border_left": "#A855F7",
+            "card_bg": "linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(168, 85, 247, 0.22)",
+            "icon_color": "#A855F7"
+        }
+    elif any(k in title or k in tags for k in ["pdf", "document", "docx", "doc", "report", "resume", "cert"]):
+        return {
+            "type_name": "PDF / Document",
+            "icon": "📄",
+            "badge_bg": "rgba(245, 158, 11, 0.18)",
+            "badge_color": "#FBBF24",
+            "badge_border": "rgba(245, 158, 11, 0.45)",
+            "card_border_left": "#F59E0B",
+            "card_bg": "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(245, 158, 11, 0.22)",
+            "icon_color": "#F59E0B"
+        }
+    elif cat == "study" or any(k in title or k in tags for k in ["study", "exam", "quiz", "notes", "lecture", "formula", "course"]):
+        return {
+            "type_name": "Study Knowledge",
+            "icon": "🧠",
+            "badge_bg": "rgba(99, 102, 241, 0.18)",
+            "badge_color": "#A5B4FC",
+            "badge_border": "rgba(99, 102, 241, 0.45)",
+            "card_border_left": "#6366F1",
+            "card_bg": "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(99, 102, 241, 0.22)",
+            "icon_color": "#A5B4FC"
+        }
+    elif cat == "work" or any(k in title or k in tags for k in ["work", "meeting", "deliverable", "project", "sprint"]):
+        return {
+            "type_name": "Work & Project",
+            "icon": "💼",
+            "badge_bg": "rgba(16, 185, 129, 0.18)",
+            "badge_color": "#34D399",
+            "badge_border": "rgba(16, 185, 129, 0.45)",
+            "card_border_left": "#10B981",
+            "card_bg": "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(16, 185, 129, 0.22)",
+            "icon_color": "#34D399"
+        }
+    else:
+        return {
+            "type_name": "Text Note",
+            "icon": "📝",
+            "badge_bg": "rgba(59, 130, 246, 0.18)",
+            "badge_color": "#60A5FA",
+            "badge_border": "rgba(59, 130, 246, 0.45)",
+            "card_border_left": "#3B82F6",
+            "card_bg": "linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%)",
+            "icon_bg": "rgba(59, 130, 246, 0.22)",
+            "icon_color": "#60A5FA"
+        }
+
 
 
 # -----------------------------------------------------------------------------
@@ -593,32 +641,60 @@ def seed_sample_data(user_id: int):
 # 4. Authentication View (Login / Register / Demo User)
 # -----------------------------------------------------------------------------
 def render_auth_view():
-    auth_hero_html = (
-        '<div class="hero-banner" style="text-align: center; padding: 36px 28px; background: linear-gradient(135deg, #090D16 0%, #1E1B4B 50%, #312E81 85%, #4F46E5 100%); border: 1px solid rgba(99, 102, 241, 0.3);">'
-        '<div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; background: linear-gradient(135deg, #6366F1, #A855F7); border-radius: 20px; font-size: 2.2rem; margin-bottom: 14px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);">🧠</div>'
-        '<h1 style="font-size: 2.6rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px;">Smart Memory Vault</h1>'
-        '<p style="max-width: 750px; margin: 0 auto 18px auto; font-size: 1.05rem; color: #E0E7FF; line-height: 1.55;">Your Intelligent Multi-Format Knowledge & Memory Repository. Ingest PDFs up to 100MB, record voice notes, auto-tag, test knowledge with AI quizzes, and query with AI.</p>'
-        '<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;">'
-        '<span class="flow-pill" style="font-size: 0.76rem; padding: 4px 12px;">📄 100MB PDF & OCR Engine</span>'
-        '<span class="flow-pill" style="font-size: 0.76rem; padding: 4px 12px;">🧠 AI Study & Quiz Mode</span>'
-        '<span class="flow-pill" style="font-size: 0.76rem; padding: 4px 12px;">🕸️ Neural Knowledge Mind Map</span>'
-        '<span class="flow-pill" style="font-size: 0.76rem; padding: 4px 12px;">🤖 Semantic Search & Chatbot</span>'
-        '<span class="flow-pill" style="font-size: 0.76rem; padding: 4px 12px;">🔒 AES-256 Vault Encryption</span>'
-        '</div>'
-        '</div>'
-    )
-    st.markdown(auth_hero_html, unsafe_allow_html=True)
+    col_left, col_right = st.columns([1.15, 0.85], gap="large")
 
-    col1, col2, col3 = st.columns([1, 2.2, 1])
-    with col2:
-        tab_login, tab_register, tab_demo = st.tabs(["🔑 Sign In", "📝 Create Account", "⚡ Instant Demo Mode"])
+    with col_left:
+        hero_left_html = """
+            <div style="padding: 10px 0 20px 0;">
+                <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 9999px; padding: 6px 16px; font-size: 0.84rem; font-weight: 700; color: #A5B4FC; margin-bottom: 16px;">
+                    ✨ AI-Powered Neural Second Brain
+                </div>
+                <h1 style="font-size: 2.7rem; font-weight: 800; line-height: 1.15; color: #FFFFFF; margin: 0 0 14px 0; letter-spacing: -0.02em;">
+                    Never Forget.<br>
+                    <span style="background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #F472B6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Instant AI Intelligence</span> Across All Your Knowledge.
+                </h1>
+                <p style="font-size: 1.02rem; color: #94A3B8; line-height: 1.55; margin-bottom: 22px;">
+                    Effortlessly capture voice notes, PDFs, YouTube transcripts, OCR whiteboard photos, and study materials. Smart Memory Vault auto-summarizes, categorizes, tags, and lets you chat with your entire knowledge universe.
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px;">
+                    <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(168, 85, 247, 0.35); border-left: 4px solid #A855F7; border-radius: 10px; padding: 12px 14px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🎙️ Live Voice Recording</div>
+                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Direct mic dictation with instant speech-to-text intelligence</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 4px solid #EF4444; border-radius: 10px; padding: 12px 14px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🎬 YouTube Ingestion</div>
+                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Auto-extract video transcripts, timestamps & key takeaways</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(6, 182, 212, 0.35); border-left: 4px solid #06B6D4; border-radius: 10px; padding: 12px 14px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🖼️ Image & OCR Scanner</div>
+                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Extract text from handwritten study notes & whiteboard photos</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(99, 102, 241, 0.35); border-left: 4px solid #6366F1; border-radius: 10px; padding: 12px 14px;">
+                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🤖 Conversational RAG</div>
+                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Semantic chat assistant with verified citation sources</div>
+                    </div>
+                </div>
+            </div>
+        """
+        render_html(hero_left_html)
+
+    with col_right:
+        render_html("""
+            <div style="text-align: center; margin-bottom: 12px; padding: 10px 0;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 54px; background: linear-gradient(135deg, #6366F1, #A855F7); border-radius: 16px; font-size: 1.8rem; margin-bottom: 10px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);">🧠</div>
+                <h2 style="font-size: 1.6rem; font-weight: 800; color: #FFFFFF; margin: 0 0 4px 0;">Access Your Vault</h2>
+                <p style="font-size: 0.88rem; color: #94A3B8; margin: 0;">Sign in to continue or launch the instant demo</p>
+            </div>
+        """)
+
+        tab_login, tab_register, tab_demo = st.tabs(["🔑 Sign In", "📝 Create Account", "⚡ Instant Demo"])
 
         with tab_login:
-            st.markdown("#### Access Your Vault")
             with st.form("login_form"):
                 email = st.text_input("Email Address", placeholder="user@example.com")
                 password = st.text_input("Password", type="password", placeholder="••••••••")
-                submit_login = st.form_submit_button("🚀 Sign In to Vault", use_container_width=True, type="primary")
+                submit_login = st.form_submit_button("Sign In to Vault", use_container_width=True, type="primary")
 
                 if submit_login:
                     if not email or not password:
@@ -633,14 +709,12 @@ def render_auth_view():
                             st.error("Invalid email or password. Please verify credentials.")
 
         with tab_register:
-            st.markdown("#### Create a New Account")
-            st.caption("Create a secure, isolated workspace for your notes and documents.")
             with st.form("register_form"):
                 reg_username = st.text_input("Username", placeholder="e.g. reena_vault")
                 reg_email = st.text_input("Email Address", placeholder="reena@example.com")
                 reg_pass = st.text_input("Password (min 6 chars)", type="password")
                 reg_pass_conf = st.text_input("Confirm Password", type="password")
-                submit_reg = st.form_submit_button("✨ Register & Initialize Vault", use_container_width=True, type="primary")
+                submit_reg = st.form_submit_button("Create Account", use_container_width=True, type="primary")
 
                 if submit_reg:
                     if reg_pass != reg_pass_conf:
@@ -653,9 +727,13 @@ def render_auth_view():
                             st.error(res.get("error", "Registration failed."))
 
         with tab_demo:
-            st.markdown("#### 🚀 Instant One-Click Demo Mode")
-            st.caption("Try the full Smart Memory Vault experience immediately with pre-loaded demonstration data.")
-            if st.button("🌟 Launch Demo User with Blueprint Data", use_container_width=True, type="primary"):
+            st.markdown(textwrap.dedent("""
+                <div style="background: rgba(99, 102, 241, 0.1); border: 1px dashed rgba(99, 102, 241, 0.4); border-radius: 10px; padding: 12px; margin-bottom: 12px;">
+                    <div style="font-weight: 700; color: #A5B4FC; font-size: 0.88rem; margin-bottom: 2px;">⚡ One-Click Instant Access</div>
+                    <div style="font-size: 0.78rem; color: #94A3B8;">Jump directly into the live Vault preloaded with sample study notes, PDFs, voice recordings, and analytics.</div>
+                </div>
+            """), unsafe_allow_html=True)
+            if st.button("🚀 Launch Instant Demo Mode", use_container_width=True, type="primary"):
                 demo_email = "demo@vault.ai"
                 demo_user = UserRepository.get_by_email(demo_email)
                 if not demo_user:
@@ -681,100 +759,19 @@ def render_auth_view():
                 }
                 st.rerun()
 
-    # Visual Flow & Features Strip
-    render_visual_flow_infographic()
-    render_key_features_strip()
-
 
 # -----------------------------------------------------------------------------
 # 5. Shared Component: Visual Flow Infographic
 # -----------------------------------------------------------------------------
 def render_visual_flow_infographic():
-    st.markdown("""
-        <div class="flow-container">
-            <div class="flow-title">⚡ How Our App Works – Visual Flow</div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
-                <div class="flow-step-card">
-                    <div class="flow-step-num">1</div>
-                    <div class="flow-step-title">Add Memory</div>
-                    <p class="flow-step-desc">Add notes, documents, voice recordings or images.</p>
-                    <div class="flow-step-items">
-                        <span class="flow-pill">📝 Text Note</span>
-                        <span class="flow-pill">📄 PDF/Doc</span>
-                        <span class="flow-pill">🎙️ Voice</span>
-                        <span class="flow-pill">🖼️ Image</span>
-                    </div>
-                </div>
-                <div class="flow-step-card">
-                    <div class="flow-step-num">2</div>
-                    <div class="flow-step-title">Process & Extract</div>
-                    <p class="flow-step-desc">Reads content, extracts text, identifies keywords & regex entities.</p>
-                    <div class="flow-step-items">
-                        <span class="flow-pill">✓ Extract Text</span>
-                        <span class="flow-pill">✓ Find Entities</span>
-                    </div>
-                </div>
-                <div class="flow-step-card">
-                    <div class="flow-step-num">3</div>
-                    <div class="flow-step-title">Auto Tagging</div>
-                    <p class="flow-step-desc">Automatically generates tags and categorizes the memory.</p>
-                    <div class="flow-step-items">
-                        <span class="flow-pill">#Python</span>
-                        <span class="flow-pill">#Project</span>
-                        <span class="flow-pill">#OOP</span>
-                    </div>
-                </div>
-                <div class="flow-step-card">
-                    <div class="flow-step-num">4</div>
-                    <div class="flow-step-title">Store & Organize</div>
-                    <p class="flow-step-desc">Securely encrypted and organized with tags, date, and priority.</p>
-                    <div class="flow-step-items">
-                        <span class="flow-pill">🔒 Encrypted</span>
-                        <span class="flow-pill">🗂️ Indexed</span>
-                    </div>
-                </div>
-                <div class="flow-step-card">
-                    <div class="flow-step-num">5</div>
-                    <div class="flow-step-title">Ask / Search</div>
-                    <p class="flow-step-desc">Ask questions or search in natural language.</p>
-                    <div class="flow-step-items">
-                        <span class="flow-pill">🔍 Semantic</span>
-                        <span class="flow-pill">💬 Natural QA</span>
-                    </div>
-                </div>
-                <div class="flow-step-card">
-                    <div class="flow-step-num">6</div>
-                    <div class="flow-step-title">Get Smart Answer</div>
-                    <p class="flow-step-desc">AI chatbot understands intent and delivers synthesized answers.</p>
-                    <div class="flow-step-items">
-                        <span class="flow-pill">🤖 AI Chatbot</span>
-                        <span class="flow-pill">✨ Insights</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    pass
 
 
 # -----------------------------------------------------------------------------
 # 6. Shared Component: Key Features Strip
 # -----------------------------------------------------------------------------
 def render_key_features_strip():
-    st.markdown("""
-        <div class="features-strip">
-            <div class="features-strip-title">⭐ Key Platform Features</div>
-            <div class="features-grid">
-                <div class="feature-chip"><span>🔍</span> Semantic Search</div>
-                <div class="feature-chip"><span>🏷️</span> Automatic Tagging</div>
-                <div class="feature-chip"><span>🎙️</span> Voice Memory Recording</div>
-                <div class="feature-chip"><span>🤖</span> Ask My Memory (Chatbot)</div>
-                <div class="feature-chip"><span>📄</span> Document Summarization</div>
-                <div class="feature-chip"><span>⏳</span> Timeline View</div>
-                <div class="feature-chip"><span>⭐</span> Important Memory Detection</div>
-                <div class="feature-chip"><span>🔒</span> Encryption & Security</div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    pass
 
 
 # -----------------------------------------------------------------------------
@@ -821,24 +818,30 @@ def render_sidebar(user: dict, memories: list[dict]):
                 current_idx = i
                 break
 
-        selected_label = st.radio(
-            "Main Menu",
+        selected_label = st.selectbox(
+            "Navigation Menu",
             options=[label for label, _ in nav_items],
             index=current_idx,
             label_visibility="collapsed"
         )
         for label, route in nav_items:
-            if selected_label == label:
+            if selected_label == label and st.session_state.get("current_nav") != route:
                 st.session_state["current_nav"] = route
-                break
+                st.rerun()
 
         st.divider()
 
         stats = get_activity_summary(memories)
+        streak_data = calculate_user_streaks(memories)
+        badges_list = calculate_achievement_badges(memories, streak_data)
+        unlocked_count = sum(1 for b in badges_list if b["unlocked"])
+
         st.markdown("<p style='font-size: 0.72rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 6px;'>Vault Intelligence</p>", unsafe_allow_html=True)
         st.markdown(f"• Total Records: **{stats['total_count']}**")
         st.markdown(f"• High Priority: **{stats['high_priority_count']}**")
         st.markdown(f"• Primary Focus: **{stats['top_category']}**")
+        st.markdown(f"• Habit Streak: **🔥 {streak_data['current_streak']} Days**")
+        st.markdown(f"• Badges: **🎖️ {unlocked_count}/{len(badges_list)} Unlocked**")
 
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🚪 Log Out", use_container_width=True):
@@ -849,222 +852,318 @@ def render_sidebar(user: dict, memories: list[dict]):
 
 
 # -----------------------------------------------------------------------------
-# 8. View: Dashboard (Dynamic Glassmorphic AI Hub)
+# Reusable Top Navigation Bar with Back to Dashboard Button
+# -----------------------------------------------------------------------------
+def render_section_header(title: str, subtitle: str = "", icon: str = "📌"):
+    """Renders a clean top navigation bar with a 1-click Back to Dashboard button."""
+    col_b1, col_b2 = st.columns([1.2, 5.8])
+    with col_b1:
+        if st.button("⬅️ Dashboard", key=f"btn_back_{title.lower().replace(' ', '_').replace('&', 'and')}", use_container_width=True):
+            st.session_state["current_nav"] = "Dashboard"
+            st.rerun()
+    with col_b2:
+        st.markdown(f"<h3 style='margin:0; padding-top:2px; font-weight: 800;'>{icon} {title}</h3>", unsafe_allow_html=True)
+        if subtitle:
+            st.caption(subtitle)
+    st.markdown("<hr style='margin: 8px 0 16px 0; border-color: rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+
+
+# -----------------------------------------------------------------------------
+# 8. View: Dashboard (Executive Modern AI Hub)
 # -----------------------------------------------------------------------------
 def render_dashboard(user: dict, memories: list[dict]):
     stats = get_activity_summary(memories)
     doc_count = sum(1 for m in memories if any(kw in (m.get("title", "") + m.get("category", "")).lower() for kw in ["pdf", "doc", "report", "resume", "cert"]))
     note_count = max(0, len(memories) - doc_count)
-    urgent_mems = [m for m in memories if int(m.get("importance", 1)) >= 4]
 
-    all_tags = []
-    for m in memories:
-        all_tags.extend([str(t).lower() for t in (m.get("tags") or []) if str(t).strip()])
-    top_tags_summary = ", ".join(list(dict.fromkeys(all_tags))[:4]) if all_tags else "general topics"
-
-    # Dynamic AI Briefing Content
-    if memories:
-        briefing_text = f"You have <b>{stats['total_count']} indexed knowledge items</b> with top focus on <b>{stats['top_category']}</b>. Key active tags include <i>#{top_tags_summary}</i>. You have <b>{len(urgent_mems)} high-priority items</b> requiring active attention."
-    else:
-        briefing_text = "Your vault is currently empty and ready for fresh knowledge. Click <b>'+ Add Memory'</b> or <b>'Ingest Document'</b> to store your first notes, PDFs, or research!"
-
-    # Unindented Hero Banner with AI Daily Intelligence Digest to prevent markdown code block rendering
-    hero_html = (
-        f'<div class="hero-banner">'
-        f'<div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">'
-        f'<div>'
-        f'<h1>Welcome back, {user["username"]}! 👋</h1>'
-        f'<p>Your centralized personal memory vault is encrypted, synchronized, and ready. Explore your memories, upload documents, or query your AI assistant.</p>'
-        f'</div>'
-        f'<div style="background: rgba(99, 102, 241, 0.25); border: 1px solid rgba(165, 180, 252, 0.4); border-radius: 9999px; padding: 6px 14px; font-size: 0.8rem; font-weight: 700; color: #E0E7FF;">'
-        f'🟢 Vault Active & Encrypted'
-        f'</div>'
-        f'</div>'
-        f'<div class="ai-digest-box">'
-        f'<div class="ai-digest-icon">🧠</div>'
-        f'<div>'
-        f'<div class="ai-digest-title">⚡ AI Vault Intelligence Digest</div>'
-        f'<div class="ai-digest-body">{briefing_text}</div>'
-        f'</div>'
-        f'</div>'
-        f'</div>'
-    )
-    st.markdown(hero_html, unsafe_allow_html=True)
-
-    # 1. Dashboard Spotlight Search Bar
-    dash_search = st.text_input(
-        "🔍 Instant Spotlight Search across memories, documents & tags...",
-        placeholder="Type to search (e.g. Python, Report, Loan, Interview, Certificate)...",
-        key="dash_spotlight_input"
-    )
-
-    if dash_search.strip():
-        searchable_list = [dict(m, content=m.get("description", "")) for m in memories]
-        matched = search_engine.search(dash_search.strip(), searchable_list, top_k=6)
-        
-        st.markdown(f"##### 🎯 Search Results for *'{dash_search}'* ({len(matched)} matches):")
-        if not matched:
-            st.info("No matching memories found for your search query.")
-        else:
-            s_cols = st.columns(min(3, max(1, len(matched))))
-            for idx, m in enumerate(matched):
-                with s_cols[idx % len(s_cols)]:
-                    cat = m.get("category", "General")
-                    cat_color = get_color_for_category(cat)
-                    card_html = (
-                        f'<div class="mem-card" style="border-left: 3px solid {cat_color};">'
-                        f'<span class="mem-cat-badge" style="background-color: {cat_color}; font-size: 0.68rem;">{cat}</span>'
-                        f'<div class="mem-card-title" style="margin-top: 6px; font-size: 0.95rem;">{m.get("title")}</div>'
-                        f'<p style="font-size: 0.8rem; color: #9CA3AF; margin: 4px 0 8px 0;">{(m.get("summary") or m.get("description",""))[:90]}...</p>'
-                        f'</div>'
-                    )
-                    st.markdown(card_html, unsafe_allow_html=True)
-                    if st.button("Inspect Memory ➔", key=f"dash_s_btn_{m.get('id')}", use_container_width=True):
-                        st.session_state["selected_memory_id"] = m.get("id")
-                        st.session_state["current_nav"] = "All Memories"
-                        st.rerun()
-        st.markdown("---")
+    # 1. Clean, Minimalist Executive Top Bar - Modern Glass Hero
+    st.markdown(f"""
+        <div class="dash-hero-glass">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <div class="hero-avatar-ring">⚡</div>
+                <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <h2 style="margin: 0; color: #FFFFFF; font-size: 1.32rem; font-weight: 800; letter-spacing: -0.01em;">Welcome, {user["username"]}</h2>
+                        <span style="font-size: 1.15rem;">👋</span>
+                    </div>
+                    <p style="margin: 2px 0 0 0; color: #94A3B8; font-size: 0.82rem;">Autonomous Memory Vault & Intelligence Hub • <strong style="color: #CBD5E1;">{stats['total_count']} items indexed</strong></p>
+                </div>
+            </div>
+            <div class="sync-status-badge">
+                <span class="pulse-dot"></span> Vault Synced
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     # 2. Modern Glass KPI Cards Row
     unique_cat_count = len(set(m.get('category','General') for m in memories)) if memories else 0
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f'<div class="kpi-card purple"><div class="kpi-label">Total Memories</div><div class="kpi-val">{stats["total_count"]}</div><div class="kpi-sub">Across all {unique_cat_count} categories</div></div>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <div class="kpi-card purple">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="kpi-label">Total Memories</div>
+                    <div class="kpi-icon-pill" style="background: rgba(168, 85, 247, 0.18); color: #C084FC;">🧠</div>
+                </div>
+                <div class="kpi-val">{stats["total_count"]}</div>
+                <div class="kpi-sub">Across {unique_cat_count} categories</div>
+            </div>
+        ''', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="kpi-card blue"><div class="kpi-label">Documents & PDFs</div><div class="kpi-val">{doc_count}</div><div class="kpi-sub">Parsed & indexed files</div></div>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <div class="kpi-card blue">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="kpi-label">Documents & OCR</div>
+                    <div class="kpi-icon-pill" style="background: rgba(56, 189, 248, 0.18); color: #38BDF8;">📄</div>
+                </div>
+                <div class="kpi-val">{doc_count}</div>
+                <div class="kpi-sub">Indexed files</div>
+            </div>
+        ''', unsafe_allow_html=True)
     with c3:
-        st.markdown(f'<div class="kpi-card emerald"><div class="kpi-label">Notes & Voice</div><div class="kpi-val">{note_count}</div><div class="kpi-sub">Text notes & audio logs</div></div>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <div class="kpi-card emerald">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="kpi-label">Notes & Media</div>
+                    <div class="kpi-icon-pill" style="background: rgba(16, 185, 129, 0.18); color: #34D399;">🎙️</div>
+                </div>
+                <div class="kpi-val">{note_count}</div>
+                <div class="kpi-sub">Text & voice logs</div>
+            </div>
+        ''', unsafe_allow_html=True)
     with c4:
-        st.markdown(f'<div class="kpi-card amber"><div class="kpi-label">High Priority</div><div class="kpi-val">{stats["high_priority_count"]}</div><div class="kpi-sub">Critical & urgent entries</div></div>', unsafe_allow_html=True)
+        st.markdown(f'''
+            <div class="kpi-card amber">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="kpi-label">High Priority</div>
+                    <div class="kpi-icon-pill" style="background: rgba(245, 158, 11, 0.18); color: #FBBF24;">⭐</div>
+                </div>
+                <div class="kpi-val">{stats["high_priority_count"]}</div>
+                <div class="kpi-sub">Critical action items</div>
+            </div>
+        ''', unsafe_allow_html=True)
 
-    # 3. Quick Launchpad Action Bar
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("##### ⚡ Quick Launchpad")
-    q1, q2, q3, q4, q5 = st.columns(5)
+    # 3. Clean Quick Action Row
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+    q1, q2, q3, q4 = st.columns(4)
     with q1:
-        if st.button("✍️ New Note", use_container_width=True):
+        if st.button("➕ Add Memory", use_container_width=True, type="primary"):
             st.session_state["current_nav"] = "Add Memory"
             st.rerun()
     with q2:
-        if st.button("📄 Ingest Document", use_container_width=True):
-            st.session_state["current_nav"] = "Add Memory"
+        if st.button("🤖 Ask Copilot", use_container_width=True):
+            st.session_state["current_nav"] = "Ask My Memory"
             st.rerun()
     with q3:
-        if st.button("🧠 Study & Quiz", use_container_width=True, type="primary"):
+        if st.button("🧠 Study & Quiz", use_container_width=True):
             st.session_state["current_nav"] = "Study & Quiz"
             st.rerun()
     with q4:
-        if st.button("🕸️ Knowledge Graph", use_container_width=True):
-            st.session_state["current_nav"] = "Knowledge Graph"
-            st.rerun()
-    with q5:
-        if st.button("🤖 Ask AI Chatbot", use_container_width=True):
-            st.session_state["current_nav"] = "Ask My Memory"
+        if st.button("📑 All Memories", use_container_width=True):
+            st.session_state["current_nav"] = "All Memories"
             st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
 
-    # 4. Main Two-Column Interactive Hub
-    col_left, col_right = st.columns([1.5, 1.1])
+    # 4. Clean Organized Tabs
+    tab_recent, tab_streaks, tab_analytics = st.tabs([
+        "📂 Recent Knowledge",
+        "🔥 Study Streaks & Badges",
+        "📊 Analytics"
+    ])
 
-    with col_left:
-        # Pinned / Urgent Attention Drawer
-        if urgent_mems:
-            st.markdown("#### 🚨 High Priority & Urgent Focus")
-            for um in urgent_mems[:3]:
-                u_cat = um.get("category", "General")
-                u_cat_color = get_color_for_category(u_cat)
-                urgent_html = (
-                    f'<div class="urgent-banner-card"><div>'
-                    f'<div style="font-size: 0.95rem; font-weight: 700; color: #FFFFFF;">⭐⭐⭐⭐⭐ {um.get("title")}</div>'
-                    f'<div style="font-size: 0.78rem; color: #CBD5E1; margin-top: 2px;">'
-                    f'<span class="mem-cat-badge" style="background-color: {u_cat_color}; font-size: 0.65rem; padding: 2px 7px;">{u_cat}</span> '
-                    f'{(um.get("summary") or um.get("description",""))[:80]}...'
-                    f'</div></div></div>'
-                )
-                st.markdown(urgent_html, unsafe_allow_html=True)
-
-        st.markdown("#### 🕒 Recent Knowledge Stream")
+    with tab_recent:
         if not memories:
-            st.info("Your vault is currently empty. Click 'Add Memory' to start adding your real notes, PDFs, and documents!")
-            if st.button("➕ Add First Memory", type="primary"):
-                st.session_state["current_nav"] = "Add Memory"
-                st.rerun()
+            st.info("Your vault is empty. Click '➕ Add Memory' to add your first note or document.")
         else:
-            for mem in memories[:5]:
+            for mem in memories[:6]:
+                vmeta = get_memory_visual_meta(mem)
                 cat = mem.get("category", "General")
                 cat_color = get_color_for_category(cat)
                 imp_stars = "⭐" * int(mem.get("importance", 1))
                 tags = mem.get("tags") or []
                 tags_html = " ".join([f"<span class='mem-tag-chip'>#{t}</span>" for t in tags[:3]])
 
-                mem_stream_html = (
-                    f'<div class="mem-card">'
-                    f'<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">'
-                    f'<div>'
-                    f'<span class="mem-card-title">{mem.get("title")}</span>'
-                    f'<div style="margin-top: 4px;">{tags_html}</div>'
-                    f'</div>'
-                    f'<div style="text-align: right;">'
-                    f'<span class="mem-cat-badge" style="background-color: {cat_color};">{cat}</span>'
-                    f'<div style="font-size: 0.8rem; margin-top: 4px;">{imp_stars}</div>'
-                    f'</div>'
-                    f'</div>'
-                    f'<p style="color: #94A3B8; font-size: 0.85rem; margin: 6px 0 8px 0; line-height: 1.45;">'
-                    f'{mem.get("summary") or mem.get("description", "")[:120] + "..."}'
-                    f'</p>'
-                    f'<div style="font-size: 0.75rem; color: #64748B;">📅 Created: {mem.get("created_at")}</div>'
-                    f'</div>'
-                )
-                st.markdown(mem_stream_html, unsafe_allow_html=True)
+                raw_text = mem.get("summary") or mem.get("description", "")
+                clean_snippet = (raw_text.replace("\n", " ").strip()[:110] + "...") if len(raw_text) > 110 else raw_text
 
-    with col_right:
-        st.markdown("#### 📊 Category Insights")
+                card_html = f"""
+                    <div class="mem-card" style="border-left: 4px solid {vmeta['card_border_left']}; background: {vmeta['card_bg']}; padding: 14px 18px; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 4px 14px -3px rgba(0,0,0,0.3);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="background: {vmeta['icon_bg']}; color: {vmeta['badge_color']}; border: 1px solid {vmeta['badge_border']}; padding: 3px 9px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                    {vmeta['icon']} {vmeta['type_name']}
+                                </span>
+                                <span class="mem-cat-badge" style="background-color: {cat_color}; font-size: 0.72rem; padding: 2px 8px;">{cat}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-size: 0.8rem; letter-spacing: 1px;">{imp_stars}</span>
+                            </div>
+                        </div>
+                        <div style="font-weight: 700; color: #F8FAFC; font-size: 1.02rem; margin-bottom: 4px; line-height: 1.35;">{mem.get('title')}</div>
+                        <div style="color: #94A3B8; font-size: 0.84rem; margin-bottom: 8px; line-height: 1.45;">{clean_snippet}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; color: #64748B; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
+                            <div>{tags_html}</div>
+                            <div style="color: #94A3B8;">📅 {mem.get('created_at')}</div>
+                        </div>
+                    </div>
+                """
+                render_html(card_html)
+
+            if st.button("🔍 Explore All Memories in Detail ➔", use_container_width=True):
+                st.session_state["current_nav"] = "All Memories"
+                st.rerun()
+
+    with tab_streaks:
+        streak_data = calculate_user_streaks(memories)
+        badges_list = calculate_achievement_badges(memories, streak_data)
+        unlocked_count = sum(1 for b in badges_list if b["unlocked"])
+
+        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+        with col_s1:
+            st.metric("🔥 Current Streak", f"{streak_data['current_streak']} Days")
+        with col_s2:
+            st.metric("🏆 Longest Record", f"{streak_data['longest_streak']} Days")
+        with col_s3:
+            st.metric("📅 Total Active Days", f"{streak_data['total_active_days']} Days")
+        with col_s4:
+            st.metric("🎖️ Badges Unlocked", f"{unlocked_count} / {len(badges_list)}")
+
+        w_days = streak_data.get("weekly_activity", {})
+        day_chips = []
+        for d, count in w_days.items():
+            if count > 0:
+                day_chips.append(f"<span style='background: #059669; color: #FFFFFF; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; margin: 2px;'>{d}: {count} ✓</span>")
+            else:
+                day_chips.append(f"<span style='background: #1E293B; color: #64748B; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin: 2px;'>{d}: 0</span>")
+        
+        st.markdown(f"<div style='background: #111827; border: 1px solid #1F2937; border-radius: 8px; padding: 8px 12px; margin: 10px 0 16px 0;'><span style='font-size: 0.8rem; font-weight: 600; color: #94A3B8; margin-right: 8px;'>Past 7-Day Activity:</span> {' '.join(day_chips)}</div>", unsafe_allow_html=True)
+
+        st.markdown("##### 🎖️ Achievement Badges")
+        b_cols = st.columns(4)
+        for idx, badge in enumerate(badges_list):
+            with b_cols[idx % 4]:
+                border_style = "1px solid #10B981" if badge["unlocked"] else "1px solid #334155"
+                bg_style = "rgba(16, 185, 129, 0.08)" if badge["unlocked"] else "rgba(17, 24, 39, 0.7)"
+                status_text = "<span style='color: #10B981; font-weight: 700;'>✅ Unlocked</span>" if badge["unlocked"] else f"<span style='color: #94A3B8;'>{badge['progress']}/{badge['target']}</span>"
+
+                st.markdown(f"""
+                    <div style="border: {border_style}; background: {bg_style}; border-radius: 10px; padding: 10px; margin-bottom: 8px; min-height: 105px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span style="font-size: 1.3rem;">{badge['icon']}</span>
+                            <span style="font-size: 0.7rem;">{status_text}</span>
+                        </div>
+                        <div style="font-size: 0.82rem; font-weight: 700; color: #FFFFFF;">{badge['title']}</div>
+                        <div style="font-size: 0.72rem; color: #94A3B8; margin-top: 2px; line-height: 1.25;">{badge['description']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+    with tab_analytics:
         if memories:
-            fig_cat = create_category_distribution_chart(memories)
-            st.plotly_chart(fig_cat, use_container_width=True)
+            c_a1, c_a2 = st.columns(2)
+            with c_a1:
+                st.markdown("##### 📊 Category Breakdown")
+                fig_cat = create_category_distribution_chart(memories)
+                st.plotly_chart(fig_cat, use_container_width=True)
+            with c_a2:
+                st.markdown("##### 📈 Priority Levels")
+                fig_imp = create_importance_histogram(memories)
+                st.plotly_chart(fig_imp, use_container_width=True)
         else:
-            st.caption("No category distribution available yet.")
-
-        st.markdown("#### 📈 Importance Spectrum")
-        if memories:
-            fig_imp = create_importance_histogram(memories)
-            st.plotly_chart(fig_imp, use_container_width=True)
-        else:
-            st.caption("No priority spectrum available yet.")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    render_visual_flow_infographic()
-    render_key_features_strip()
+            st.info("No memories to display analytics for yet.")
 
 
 # -----------------------------------------------------------------------------
 # 8b. View: AI Study Flashcards & Interactive Quiz Generator
 # -----------------------------------------------------------------------------
 def render_study_quiz(user: dict, memories: list[dict]):
-    st.markdown("### 🧠 AI Study & Quiz Mode")
-    st.caption("Turn your notes, documents, and uploaded PDFs into interactive flashcards and active-recall quizzes.")
+    render_section_header("AI Study & Quiz Mode", "Turn your notes, documents, and uploaded PDFs into interactive flashcards and active-recall quizzes.", "🧠")
 
     if not memories:
         st.info("No memories found. Add some notes or PDFs first to generate study materials.")
         return
 
-    # Memory selection
-    mem_options = {f"{m.get('title')} ({m.get('category')})": m for m in memories}
-    selected_key = st.selectbox("Select Memory or Document to Study:", options=list(mem_options.keys()))
-    selected_mem = mem_options[selected_key]
+    # Memory selection with option for All Vault Knowledge
+    study_options = ["📚 Entire Vault (All Notes, PDFs & Knowledge Combined)"] + [f"{m.get('title')} ({m.get('category')})" for m in memories]
+
+    col_sel1, col_sel2, col_sel3 = st.columns([2.5, 1.2, 1.3])
+    with col_sel1:
+        selected_key = st.selectbox("🎯 Select Study Topic / Document:", options=study_options, key="study_topic_selector")
+    with col_sel2:
+        num_items = st.selectbox("Set Size", options=[4, 6, 8, 10], index=1, key="study_num_items")
+    with col_sel3:
+        st.write("")
+        st.write("")
+        if st.button("⚡ New Question Set", use_container_width=True, help="Synthesize fresh dynamic questions from this content"):
+            st.session_state["study_seed"] = st.session_state.get("study_seed", 0) + 1
+            st.session_state["fc_index"] = 0
+            st.session_state["fc_flipped"] = False
+            st.session_state["mastered_cards"] = set()
+            st.rerun()
+
+    seed = st.session_state.get("study_seed", 0)
+    if selected_key == "📚 Entire Vault (All Notes, PDFs & Knowledge Combined)":
+        content_text = "\n\n".join([f"{m.get('title')}\n{m.get('description')}\n{m.get('summary', '')}" for m in memories])
+        study_title = "Vault Master Deck"
+        study_id = f"all_vault_{seed}_{num_items}"
+        target_memories = memories
+    else:
+        mem_options = {f"{m.get('title')} ({m.get('category')})": m for m in memories}
+        selected_mem = mem_options[selected_key]
+        content_text = f"{selected_mem.get('title')}\n{selected_mem.get('description')}\n{selected_mem.get('summary', '')}"
+        study_title = selected_mem.get("title", "")
+        study_id = f"{selected_mem.get('id')}_{seed}_{num_items}"
+        target_memories = [selected_mem]
+
+    # Initialize cache dictionaries
+    if "cached_flashcards" not in st.session_state:
+        st.session_state["cached_flashcards"] = {}
+    if "cached_quiz_questions" not in st.session_state:
+        st.session_state["cached_quiz_questions"] = {}
+
+    # Reset flashcard position when switching topics
+    if st.session_state.get("active_study_id") != study_id:
+        st.session_state["active_study_id"] = study_id
+        st.session_state["fc_index"] = 0
+        st.session_state["fc_flipped"] = False
+        st.session_state["mastered_cards"] = set()
 
     study_tab1, study_tab2 = st.tabs(["🎴 Smart Flashcards", "📝 AI Multiple-Choice Quiz"])
 
-    content_text = f"{selected_mem.get('title')}\n{selected_mem.get('description')}\n{selected_mem.get('summary', '')}"
-
+    # ---------------------------------------------------------
+    # TAB 1: SMART FLASHCARDS
+    # ---------------------------------------------------------
     with study_tab1:
         st.markdown("#### 🎴 Active Recall Flashcards")
-        cards = quiz_engine.generate_flashcards(content_text, title=selected_mem.get("title", ""))
+        
+        # Load or generate flashcards
+        if study_id not in st.session_state["cached_flashcards"]:
+            st.session_state["cached_flashcards"][study_id] = quiz_engine.generate_flashcards(
+                content_text, title=study_title, memories=target_memories, num_cards=num_items
+            )
+        all_cards = st.session_state["cached_flashcards"][study_id]
 
-        if not cards:
+        if not all_cards:
             st.warning("Not enough text in this memory to generate flashcards. Try adding more detailed notes.")
         else:
+            fc_filter_col1, fc_filter_col2 = st.columns([2, 1])
+            with fc_filter_col1:
+                study_filter = st.radio(
+                    "Study Mode:",
+                    ["All Cards", "Unmastered Cards Only"],
+                    horizontal=True,
+                    key=f"fc_filter_{study_id}"
+                )
+
+            # Determine active card pool
+            if study_filter == "Unmastered Cards Only":
+                cards = [c for idx, c in enumerate(all_cards) if idx not in st.session_state.get("mastered_cards", set())]
+                if not cards:
+                    st.success("🎉 You have mastered all flashcards in this deck! Switch back to 'All Cards' to review.")
+                    cards = all_cards
+            else:
+                cards = all_cards
+
             if "fc_index" not in st.session_state:
                 st.session_state["fc_index"] = 0
             if "fc_flipped" not in st.session_state:
@@ -1074,23 +1173,29 @@ def render_study_quiz(user: dict, memories: list[dict]):
 
             idx = st.session_state["fc_index"] % len(cards)
             card = cards[idx]
-            is_mastered = idx in st.session_state["mastered_cards"]
+            original_idx = all_cards.index(card) if card in all_cards else idx
+            is_mastered = original_idx in st.session_state["mastered_cards"]
 
-            st.progress((idx + 1) / len(cards), text=f"Card {idx + 1} of {len(cards)} | Mastered: {len(st.session_state['mastered_cards'])}/{len(cards)}")
+            st.progress(
+                (idx + 1) / len(cards),
+                text=f"Card {idx + 1} of {len(cards)} | Mastered: {len(st.session_state['mastered_cards'])}/{len(all_cards)}"
+            )
 
             # Flashcard Display
             is_flipped = st.session_state["fc_flipped"]
-            card_title = "💡 EXPLANATION & CONTEXT" if is_flipped else f"❓ {card['concept']}"
+            card_title = "💡 EXPLANATION & CONTEXT" if is_flipped else f"❓ {card.get('topic', 'Concept')}: {card['concept']}"
             card_text = card["back"] if is_flipped else card["front"]
-            card_hint = "Click 'Flip Card' to test your recall" if not is_flipped else "Click 'Flip Card' to view question again"
+            card_hint = "Click 'Flip Card' to reveal the explanation" if not is_flipped else "Click 'Flip Card' to view question again"
 
-            st.markdown(f"""
+            mastered_indicator = ' <span style="color: #4ADE80; font-size: 0.8rem; margin-left: 8px;">★ MASTERED</span>' if is_mastered else ''
+            fc_html = f"""
                 <div class="flashcard-frame">
-                    <div class="flashcard-topic-badge">{card_title}</div>
+                    <div class="flashcard-topic-badge">{card_title}{mastered_indicator}</div>
                     <div class="flashcard-main-text">{card_text}</div>
                     <div class="flashcard-hint">{card_hint}</div>
                 </div>
-            """, unsafe_allow_html=True)
+            """
+            render_html(fc_html)
 
             fc1, fc2, fc3, fc4, fc5 = st.columns(5)
             with fc1:
@@ -1111,40 +1216,52 @@ def render_study_quiz(user: dict, memories: list[dict]):
                 btn_label = "✅ Mastered" if not is_mastered else "↩️ Unmark"
                 if st.button(btn_label, use_container_width=True):
                     if is_mastered:
-                        st.session_state["mastered_cards"].remove(idx)
+                        st.session_state["mastered_cards"].remove(original_idx)
                     else:
-                        st.session_state["mastered_cards"].add(idx)
+                        st.session_state["mastered_cards"].add(original_idx)
                     st.rerun()
             with fc5:
-                if st.button("🔀 Reset", use_container_width=True):
+                if st.button("🔀 Reset All", use_container_width=True):
                     st.session_state["fc_index"] = 0
                     st.session_state["fc_flipped"] = False
                     st.session_state["mastered_cards"] = set()
                     st.rerun()
 
+    # ---------------------------------------------------------
+    # TAB 2: DYNAMIC AI QUIZ
+    # ---------------------------------------------------------
     with study_tab2:
         st.markdown("#### 📝 AI Multiple-Choice Knowledge Quiz")
-        st.caption("Test your comprehension with dynamically synthesized questions from your vault.")
+        st.caption("Test your comprehension with questions dynamically generated from your notes, PDFs, and knowledge vault.")
 
-        quiz_questions = quiz_engine.generate_quiz(content_text, title=selected_mem.get("title", ""))
+        # Load or generate stable quiz questions
+        if study_id not in st.session_state["cached_quiz_questions"]:
+            st.session_state["cached_quiz_questions"][study_id] = quiz_engine.generate_quiz(
+                content_text, title=study_title, memories=target_memories, num_questions=num_items
+            )
+        quiz_questions = st.session_state["cached_quiz_questions"][study_id]
 
         if not quiz_questions:
             st.warning("Not enough context to construct a quiz. Add more details or upload a PDF document!")
         else:
-            with st.form("study_quiz_form"):
+            with st.form(f"study_quiz_form_{study_id}"):
                 user_answers = {}
                 for q in quiz_questions:
-                    st.markdown(f"""
+                    q_type = q.get("type", "Multiple Choice")
+                    q_html = f"""
                         <div class="quiz-question-card">
-                            <div class="quiz-num">Question {q['id']}</div>
+                            <span class="quiz-num">Question {q['id']}</span>
+                            <span class="quiz-type-badge">{q_type}</span>
                             <div class="quiz-q-text">{q['question']}</div>
                         </div>
-                    """, unsafe_allow_html=True)
+                    """
+                    render_html(q_html)
                     user_answers[q["id"]] = st.radio(
                         f"Select answer for Question {q['id']}:",
                         options=q["options"],
-                        key=f"quiz_q_{q['id']}_{selected_mem.get('id')}",
-                        label_visibility="collapsed"
+                        key=f"quiz_q_{q['id']}_{study_id}",
+                        label_visibility="collapsed",
+                        index=None
                     )
 
                 submit_quiz = st.form_submit_button("🎯 Submit Quiz for Grading", type="primary", use_container_width=True)
@@ -1156,8 +1273,9 @@ def render_study_quiz(user: dict, memories: list[dict]):
 
                 for q in quiz_questions:
                     u_ans = user_answers.get(q["id"])
-                    is_correct = (u_ans == q["correct_answer"])
-                    if is_correct:
+                    if u_ans is None:
+                        st.warning(f"⚠️ **Question {q['id']} Unanswered.** Correct Answer: *{q['correct_answer']}*")
+                    elif u_ans == q["correct_answer"]:
                         correct_count += 1
                         st.success(f"✅ **Question {q['id']} Correct!** Your answer: *{u_ans}*")
                     else:
@@ -1166,18 +1284,19 @@ def render_study_quiz(user: dict, memories: list[dict]):
 
                 score_pct = int((correct_count / len(quiz_questions)) * 100)
                 if score_pct >= 80:
-                    st.balloons()
+                    trigger_celebration_blast()
                     st.success(f"🏆 Outstanding! You scored **{correct_count}/{len(quiz_questions)} ({score_pct}%)**! Knowledge mastered.")
+                elif score_pct >= 50:
+                    st.info(f"👍 Good effort! You scored **{correct_count}/{len(quiz_questions)} ({score_pct}%)**. Review the cards and test again!")
                 else:
-                    st.info(f"📚 You scored **{correct_count}/{len(quiz_questions)} ({score_pct}%)**. Review your flashcards and try again!")
+                    st.warning(f"📚 You scored **{correct_count}/{len(quiz_questions)} ({score_pct}%)**. Check your flashcards and give it another try!")
 
 
 # -----------------------------------------------------------------------------
 # 8c. View: Interactive Knowledge Mind Map Graph
 # -----------------------------------------------------------------------------
 def render_knowledge_graph_view(user: dict, memories: list[dict]):
-    st.markdown("### 🕸️ Interactive Knowledge Mind Map")
-    st.caption("Explore relationships between your memories, categories, and keyword tags as an interactive neural network.")
+    render_section_header("Interactive Knowledge Mind Map", "Explore relationships between your memories, categories, and keyword tags as an interactive neural network.", "🕸️")
 
     if not memories:
         st.info("No memories in your vault to visualize.")
@@ -1202,8 +1321,7 @@ def render_knowledge_graph_view(user: dict, memories: list[dict]):
 # 9. View: All Memories & Memory Details Inspector
 # -----------------------------------------------------------------------------
 def render_all_memories(user: dict, memories: list[dict]):
-    st.markdown("### 📑 All Memories Repository")
-    st.caption("Browse, filter, and inspect your stored knowledge items, documents, and notes.")
+    render_section_header("All Memories Repository", "Browse, filter, and inspect your stored knowledge items, documents, and notes.", "📑")
 
     if not memories:
         st.info("Your vault is currently empty.")
@@ -1254,32 +1372,41 @@ def render_all_memories(user: dict, memories: list[dict]):
 
         for mem in filtered:
             mem_id = mem.get("id")
+            vmeta = get_memory_visual_meta(mem)
             cat = mem.get("category", "General")
             cat_color = get_color_for_category(cat)
+            imp_stars = "⭐" * int(mem.get("importance", 1))
             tags = mem.get("tags") or []
             tags_html = " ".join([f"<span class='mem-tag-chip'>#{t}</span>" for t in tags[:4]])
 
             is_selected = (st.session_state.get("selected_memory_id") == mem_id)
-            selected_border = "border: 2px solid #6366F1;" if is_selected else ""
+            selected_border = "border: 2px solid #6366F1;" if is_selected else f"border-left: 4px solid {vmeta['card_border_left']};"
 
             with st.container():
-                st.markdown(f"""
-                    <div class="mem-card" style="{selected_border}">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <div>
-                                <h4 style="margin: 0; color: #F9FAFB; font-size: 1.05rem;">{mem.get('title')}</h4>
-                                <div style="margin-top: 4px;">{tags_html}</div>
+                card_html = f"""
+                    <div class="mem-card" style="{selected_border} background: {vmeta['card_bg']}; padding: 14px 18px; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 4px 14px -3px rgba(0,0,0,0.3);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="background: {vmeta['icon_bg']}; color: {vmeta['badge_color']}; border: 1px solid {vmeta['badge_border']}; padding: 3px 9px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                    {vmeta['icon']} {vmeta['type_name']}
+                                </span>
+                                <span class="mem-cat-badge" style="background-color: {cat_color}; font-size: 0.72rem; padding: 2px 8px;">{cat}</span>
                             </div>
-                            <div style="text-align: right;">
-                                <span class="mem-cat-badge" style="background-color: {cat_color};">{cat}</span>
-                                <div style="font-size: 0.75rem; color: #9CA3AF; margin-top: 4px;">{mem.get('created_at')}</div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-size: 0.8rem; letter-spacing: 1px;">{imp_stars}</span>
                             </div>
                         </div>
-                        <p style="color: #9CA3AF; font-size: 0.85rem; margin: 8px 0;">
+                        <div style="font-weight: 700; color: #F8FAFC; font-size: 1.02rem; margin-bottom: 4px; line-height: 1.35;">{mem.get('title')}</div>
+                        <p style="color: #94A3B8; font-size: 0.84rem; margin: 4px 0 8px 0; line-height: 1.45;">
                             {mem.get('summary') or mem.get('description', '')[:100] + '...'}
                         </p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; color: #64748B; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
+                            <div>{tags_html}</div>
+                            <div style="color: #94A3B8;">📅 {mem.get('created_at')}</div>
+                        </div>
                     </div>
-                """, unsafe_allow_html=True)
+                """
+                render_html(card_html)
 
                 btn_col1, btn_col2 = st.columns([3, 1])
                 with btn_col1:
@@ -1300,60 +1427,49 @@ def render_all_memories(user: dict, memories: list[dict]):
         selected_mem = next((m for m in memories if m.get("id") == sel_id), None) if sel_id else (filtered[0] if filtered else None)
 
         if selected_mem:
+            vmeta = get_memory_visual_meta(selected_mem)
             cat = selected_mem.get("category", "General")
             cat_color = get_color_for_category(cat)
             tags = selected_mem.get("tags") or []
             tags_html = " ".join([f"<span class='mem-tag-chip' style='font-size: 0.82rem;'>#{t}</span>" for t in tags])
 
-            title_lower = selected_mem.get("title", "").lower()
-            if "pdf" in title_lower or "report" in title_lower or "cert" in title_lower:
-                doc_type = "Document (PDF)"
-                doc_size = "2.4 MB"
-            elif "docx" in title_lower or "doc" in title_lower:
-                doc_type = "Document (DOCX)"
-                doc_size = "1.1 MB"
-            elif "voice" in title_lower:
-                doc_type = "Voice Note (Audio)"
-                doc_size = "450 KB"
-            else:
-                doc_type = "Text Note"
-                doc_size = f"{len(selected_mem.get('description', ''))} bytes"
-
-            st.markdown(f"""
-                <div class="detail-inspector">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                        <span class="mem-cat-badge" style="background-color: {cat_color}; font-size: 0.8rem;">{cat}</span>
+            inspector_html = f"""
+                <div class="detail-inspector" style="border-top: 4px solid {vmeta['card_border_left']};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: {vmeta['icon_bg']}; color: {vmeta['badge_color']}; border: 1px solid {vmeta['badge_border']}; padding: 3px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                {vmeta['icon']} {vmeta['type_name']}
+                            </span>
+                            <span class="mem-cat-badge" style="background-color: {cat_color}; font-size: 0.8rem; padding: 3px 10px;">{cat}</span>
+                        </div>
                         <span style="font-size: 0.95rem;">{'⭐' * int(selected_mem.get('importance', 1))}</span>
                     </div>
-                    <h3 style="margin-bottom: 8px;">{selected_mem.get('title')}</h3>
+                    <h3 style="margin-bottom: 8px; color: #FFFFFF;">{selected_mem.get('title')}</h3>
                     <div style="margin-bottom: 16px;">{tags_html}</div>
-
                     <div class="detail-field">
                         <div class="detail-field-label">Content Preview</div>
-                        <div class="detail-field-val" style="background: #1F2937; padding: 12px; border-radius: 8px; border: 1px solid #374151; font-size: 0.88rem; line-height: 1.5;">
+                        <div class="detail-field-val" style="background: #1F2937; padding: 12px; border-radius: 8px; border: 1px solid #374151; font-size: 0.88rem; line-height: 1.5; color: #E5E7EB;">
                             {selected_mem.get('description')}
                         </div>
                     </div>
-
-                    <div class="detail-field">
+                    <div class="detail-field" style="margin-top: 14px;">
                         <div class="detail-field-label">AI Generated Summary</div>
-                        <div class="detail-field-val" style="color: #A5B4FC; font-style: italic; font-size: 0.88rem;">
+                        <div class="detail-field-val" style="color: #A5B4FC; font-style: italic; font-size: 0.88rem; background: rgba(99, 102, 241, 0.08); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.25);">
                             "{selected_mem.get('summary')}"
                         </div>
                     </div>
-
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; border-top: 1px solid #1F2937; padding-top: 14px;">
                         <div class="detail-field">
-                            <div class="detail-field-label">Type</div>
-                            <div class="detail-field-val"><b>{doc_type}</b></div>
+                            <div class="detail-field-label">Format Type</div>
+                            <div class="detail-field-val"><b>{vmeta['icon']} {vmeta['type_name']}</b></div>
                         </div>
                         <div class="detail-field">
                             <div class="detail-field-label">Date Added</div>
                             <div class="detail-field-val">{selected_mem.get('created_at')}</div>
                         </div>
                         <div class="detail-field">
-                            <div class="detail-field-label">Size</div>
-                            <div class="detail-field-val">{doc_size}</div>
+                            <div class="detail-field-label">Character Count</div>
+                            <div class="detail-field-val">{len(selected_mem.get('description', ''))} chars</div>
                         </div>
                         <div class="detail-field">
                             <div class="detail-field-label">Memory ID</div>
@@ -1361,23 +1477,28 @@ def render_all_memories(user: dict, memories: list[dict]):
                         </div>
                     </div>
                 </div>
-            """, unsafe_allow_html=True)
+            """
+            render_html(inspector_html)
         else:
             st.info("Select any memory on the left to view its complete properties.")
 
 
 # -----------------------------------------------------------------------------
-# 10. View: Add Memory Hub (Text, Document, Voice, Image)
+# 10. View: Add Memory Hub (Text, Document, Voice, Image, Web & YouTube)
 # -----------------------------------------------------------------------------
 def render_add_memory(user: dict):
-    st.markdown("### ➕ Add New Memory Hub")
-    st.caption("Capture knowledge through any modality. The AI pipeline will automatically extract text, identify regex entities, generate tags, and summarize.")
+    render_section_header(
+        title="Add New Memory Hub",
+        subtitle="Capture knowledge through text, docs, voice, images (OCR), or YouTube & web scraping.",
+        icon="➕"
+    )
 
-    tab_text, tab_doc, tab_voice, tab_img = st.tabs([
+    tab_text, tab_doc, tab_voice, tab_img, tab_url = st.tabs([
         "📝 Text Note",
         "📄 PDF / Document",
         "🎙️ Voice Note Recording",
-        "🖼️ Image & OCR"
+        "🖼️ Image & OCR",
+        "🌐 Web & YouTube Ingestion"
     ])
 
     with tab_text:
@@ -1417,11 +1538,11 @@ def render_add_memory(user: dict):
                         tags=final_tags
                     )
                 st.success(f"🎉 Memory '{note_title}' saved to Vault successfully!")
-                st.balloons()
+                trigger_celebration_blast()
 
     with tab_doc:
         st.markdown("#### Ingest PDF, Word (.docx), TXT or Markdown Document")
-        uploaded_doc = st.file_uploader("Upload File", type=["pdf", "docx", "txt", "md"], help="Max file size: 15MB")
+        uploaded_doc = st.file_uploader("Upload File", type=["pdf", "docx", "txt", "md"], help="Max file size: 100MB")
 
         if uploaded_doc is not None:
             file_bytes = uploaded_doc.getvalue()
@@ -1456,7 +1577,6 @@ def render_add_memory(user: dict):
                         ai_doc = process_memory(content_for_ai, title=custom_doc_title or filename)
 
                     final_cat = ai_doc["category"] if doc_cat_choice == "Auto-Detect (AI)" else doc_cat_choice
-                    ext = filename.split(".")[-1].lower()
                     
                     if doc_custom_tags.strip():
                         user_tags = [t.strip().lower() for t in doc_custom_tags.split(",") if t.strip()]
@@ -1485,7 +1605,7 @@ def render_add_memory(user: dict):
                     }
 
                     st.success(f"🎉 Document '{filename}' parsed and saved to Vault successfully!")
-                    st.balloons()
+                    trigger_celebration_blast()
 
         # Display last added document stats and entities if available
         if st.session_state.get("last_added_doc"):
@@ -1525,140 +1645,461 @@ def render_add_memory(user: dict):
 
     with tab_voice:
         st.markdown("#### 🎙️ Voice Based Memory Recording")
-        st.caption("Upload an audio recording or dictate a memory.")
+        st.caption("Click the microphone button below to record your voice note. Your speech will be transcribed and automatically indexed into your Vault.")
 
-        st.file_uploader("Upload Audio Note (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
-        voice_prompt = st.text_area(
-            "Or Dictate / Paste Voice Transcription",
-            placeholder="e.g. Remember to prepare the slides for the Python Loan Management system demo on Friday and email the team...",
-            height=120
-        )
+        mic_audio = st.audio_input("🔴 Click the red microphone button to speak:", key="voice_mic_recorder")
 
-        if st.button("🎙️ Process Voice Memory", type="primary"):
-            text_to_process = voice_prompt.strip() or "Voice memory recording captured regarding project goals, schedule, and team deliverables."
-            with st.spinner("Transcribing and processing voice intelligence..."):
-                ai_voice = process_memory(text_to_process, title="Voice Note")
-                MemoryRepository.create_memory(
-                    user_id=user["id"],
-                    title=f"Voice Note - {datetime.utcnow().strftime('%b %d')}",
-                    description=text_to_process,
-                    category=ai_voice["category"],
-                    summary=ai_voice["summary"],
-                    importance=ai_voice["importance"],
-                    tags=ai_voice["tags"] + ["voice", "audio"]
+        if mic_audio is not None:
+            audio_bytes = mic_audio.getvalue()
+            audio_hash = hash(audio_bytes)
+
+            # Auto-transcribe recording if not already cached
+            if st.session_state.get("last_voice_audio_hash") != audio_hash:
+                with st.spinner("🎧 Transcribing your voice in real-time..."):
+                    t_res = voice_transcriber.transcribe(audio_bytes)
+                    if t_res["success"] and t_res["text"]:
+                        st.session_state["active_voice_text"] = t_res["text"]
+                        st.session_state["active_voice_status"] = "success"
+                    else:
+                        # Fallback descriptive text so saving is never blocked
+                        st.session_state["active_voice_text"] = f"Voice note recording captured on {datetime.utcnow().strftime('%b %d, %Y at %H:%M UTC')}"
+                        st.session_state["active_voice_status"] = "fallback"
+                    st.session_state["last_voice_audio_hash"] = audio_hash
+
+            voice_content = st.session_state.get("active_voice_text", "").strip()
+
+            st.markdown("---")
+            st.markdown("##### 🎙️ Recorded Voice Note")
+            
+            # Show audio player
+            st.audio(mic_audio)
+
+            if st.session_state.get("active_voice_status") == "success":
+                st.success(f"✨ **Transcribed Text:** \"{voice_content}\"")
+            else:
+                st.info(f"🎙️ **Recorded Audio Note:** \"{voice_content}\"")
+
+            # Metadata settings
+            col_vmeta1, col_vmeta2 = st.columns([2, 1])
+            with col_vmeta1:
+                default_voice_title = f"Voice Note - {datetime.utcnow().strftime('%b %d, %Y %H:%M')}"
+                if voice_content and not voice_content.startswith("Voice note recording"):
+                    words = voice_content.split()
+                    default_voice_title = " ".join(words[:6]) + ("..." if len(words) > 6 else "")
+                
+                voice_title = st.text_input(
+                    "Memory Title",
+                    value=default_voice_title,
+                    key="voice_direct_title_input"
                 )
-            st.success("🎉 Voice memory recorded and indexed!")
-            st.rerun()
+            with col_vmeta2:
+                voice_cat = st.selectbox(
+                    "Category",
+                    options=["Auto-Detect (AI)", "Work", "Study", "Personal", "Health", "Finance", "General"],
+                    key="voice_direct_cat_select"
+                )
 
-    with tab_img:
-        st.markdown("#### 🖼️ Image & OCR Ingestion")
-        st.caption("Upload certificate images, whiteboard notes, or receipts.")
+            col_vmeta3, col_vmeta4 = st.columns([1, 2])
+            with col_vmeta3:
+                voice_imp = st.slider("Importance Level", 1, 5, 3, key="voice_direct_imp_slider")
+            with col_vmeta4:
+                voice_tags = st.text_input(
+                    "Custom Tags (optional, comma-separated)",
+                    placeholder="e.g. voice-memo, meeting, ideas",
+                    key="voice_direct_tags_input"
+                )
 
-        img_file = st.file_uploader("Upload Image (.png, .jpg, .jpeg)", type=["png", "jpg", "jpeg"])
-        img_title = st.text_input("Image Title", placeholder="e.g. Python Certificate, Whiteboard diagram...")
+            submit_voice = st.button("💾 Save Voice Memory to Vault", type="primary", use_container_width=True, key="save_voice_memory_btn")
 
-        if img_file is not None:
-            st.image(img_file, caption="Preview", width=300)
-            if st.button("🖼️ Extract Text & Save to Vault", type="primary"):
-                simulated_text = f"Certificate of Completion for {img_title or 'Python Course'}. Validated and verified memory entry."
-                with st.spinner("Extracting text and indexing..."):
-                    ai_img = process_memory(simulated_text, title=img_title or "Image Memory")
+            if submit_voice:
+                with st.spinner("🧠 Analyzing, tagging, and indexing voice memory into your Vault..."):
+                    ai_voice = process_memory(voice_content, title=voice_title)
+                    final_cat = ai_voice["category"] if voice_cat == "Auto-Detect (AI)" else voice_cat
+
+                    user_tags = [t.strip() for t in voice_tags.split(",") if t.strip()] if voice_tags else []
+                    final_tags = list(set(ai_voice["tags"] + user_tags + ["voice", "audio"]))
+
                     MemoryRepository.create_memory(
                         user_id=user["id"],
-                        title=img_title.strip() or f"Image: {img_file.name}",
-                        description=simulated_text,
-                        category=ai_img["category"],
-                        summary=ai_img["summary"],
-                        importance=ai_img["importance"],
-                        tags=ai_img["tags"] + ["image", "certificate"]
+                        title=voice_title.strip() or f"Voice Note - {datetime.utcnow().strftime('%b %d')}",
+                        description=voice_content,
+                        category=final_cat,
+                        summary=ai_voice["summary"],
+                        importance=voice_imp,
+                        tags=final_tags
                     )
-                st.success("🎉 Image memory indexed into vault!")
+
+                st.session_state["active_voice_text"] = ""
+                st.session_state["last_voice_audio_hash"] = None
+                st.success("🎉 Voice memory recorded, transcribed, and saved to your Vault!")
+                trigger_celebration_blast()
                 st.rerun()
+        else:
+            st.info("👆 Click the red microphone button above, speak your memory, and click stop when you're done.")
+
+    with tab_img:
+        st.markdown("#### 🖼️ Image & Handwriting OCR Ingestion")
+        st.caption("Upload whiteboards, handwritten study notes, certificates, or book page photos to extract text via OCR.")
+
+        img_file = st.file_uploader("Upload Image (.png, .jpg, .jpeg, .webp)", type=["png", "jpg", "jpeg", "webp", "bmp"])
+        
+        if img_file is not None:
+            img_bytes = img_file.getvalue()
+            col_i_preview, col_i_meta = st.columns([1, 1])
+            with col_i_preview:
+                st.image(img_file, caption=f"Preview: {img_file.name}", use_container_width=True)
+            
+            with col_i_meta:
+                img_title = st.text_input("Image Memory Title (Optional)", value=f"Image: {img_file.name}", placeholder="e.g. Whiteboard Architecture, Certificate...")
+                col_ic1, col_ic2 = st.columns(2)
+                with col_ic1:
+                    img_cat_choice = st.selectbox("Category", options=["Auto-Detect (AI)", "Study", "Work", "Personal", "Health", "Finance", "General"], key="img_cat_sel")
+                with col_ic2:
+                    img_imp_level = st.slider("Importance", 1, 5, 3, key="img_imp_slider")
+                img_custom_tags = st.text_input("Custom Tags (comma-separated, optional)", placeholder="e.g. diagram, lecture, python", key="img_tags_input")
+
+            if st.button("🔍 Extract Text (OCR) & Save to Vault", type="primary", use_container_width=True):
+                with st.spinner("Executing Optical Character Recognition (OCR) & Regex entity parser..."):
+                    img_res = process_document(img_bytes, img_file.name, user["id"])
+
+                if img_res.get("status") == "error":
+                    st.error(f"OCR Extraction failed: {img_res.get('error_message')}")
+                else:
+                    meta = img_res.get("metadata", {})
+                    extracted_txt = img_res.get("cleaned_text", "")
+                    entities = img_res.get("extracted_entities", {})
+                    content_for_ai = extracted_txt if len(extracted_txt.strip()) > 10 else f"{img_title or img_file.name}\nVisual Image Capture"
+
+                    with st.spinner("Generating AI Summary and Domain Tags..."):
+                        ai_img = process_memory(content_for_ai, title=img_title or img_file.name)
+
+                    final_cat = ai_img["category"] if img_cat_choice == "Auto-Detect (AI)" else img_cat_choice
+                    base_tags = [t.strip().lower() for t in img_custom_tags.split(",") if t.strip()] if img_custom_tags.strip() else ai_img["tags"]
+                    final_tags = list(set(base_tags + ["image", "ocr"]))
+
+                    saved_mem = MemoryRepository.create_memory(
+                        user_id=user["id"],
+                        title=img_title.strip() or f"Image: {img_file.name}",
+                        description=extracted_txt[:5000] if extracted_txt.strip() else f"Image OCR: {img_file.name}",
+                        category=final_cat,
+                        summary=ai_img["summary"],
+                        importance=img_imp_level,
+                        tags=final_tags
+                    )
+
+                    st.success(f"🎉 OCR Completed! Memory '{img_title or img_file.name}' saved to Vault.")
+                    
+                    with st.expander("👁️ View Extracted OCR Text & Entities", expanded=True):
+                        st.markdown(f"**OCR Engine Used:** `{meta.get('engine_used', 'OCR Engine')}` | **Dimensions:** `{meta.get('dimensions', 'N/A')}`")
+                        st.text_area("Extracted Text Content", value=extracted_txt or "(No text detected in image)", height=140, disabled=True)
+                        if any(entities.values()):
+                            st.markdown("**Discovered Entities:**")
+                            e_cols = st.columns(4)
+                            with e_cols[0]: st.write("Dates:", entities.get("dates", []))
+                            with e_cols[1]: st.write("Emails:", entities.get("emails", []))
+                            with e_cols[2]: st.write("Phones:", entities.get("phone_numbers", []))
+                            with e_cols[3]: st.write("Amounts:", entities.get("amounts", []))
+                    st.balloons()
+                    trigger_celebration_blast(balloons=False)
+
+    with tab_url:
+        st.markdown("#### 🌐 Web Article & YouTube Video Ingestion")
+        st.caption("Paste any YouTube video link to extract its transcript, or a blog/webpage URL to scrape clean article text.")
+
+        url_input = st.text_input("Website or YouTube URL", placeholder="e.g. https://www.youtube.com/watch?v=kqtD5dpn9C8 or https://en.wikipedia.org/wiki/Artificial_intelligence")
+
+        if url_input.strip():
+            is_yt = ("youtube.com" in url_input) or ("youtu.be" in url_input)
+            col_u_title, col_u_cat = st.columns(2)
+            with col_u_title:
+                custom_url_title = st.text_input("Custom Memory Title (Optional)", placeholder="Leave blank to auto-detect title from page/video")
+            with col_u_cat:
+                url_cat_choice = st.selectbox("Category", options=["Auto-Detect (AI)", "Study", "Work", "Personal", "Health", "Finance", "General"], key="url_cat_sel")
+
+            col_u_imp, col_u_tags = st.columns(2)
+            with col_u_imp:
+                url_imp_level = st.slider("Importance Level", 1, 5, 3, key="url_imp_slider")
+            with col_u_tags:
+                url_custom_tags = st.text_input("Custom Tags (comma-separated, optional)", placeholder="e.g. tutorial, python, youtube", key="url_tags_input")
+
+            btn_label = "📺 Extract YouTube Transcript & Ingest" if is_yt else "🌐 Scrape Web Article & Ingest"
+            if st.button(btn_label, type="primary", use_container_width=True):
+                with st.spinner("Fetching content, parsing HTML / transcript & running AI pipeline..."):
+                    url_res = process_url(url_input.strip(), user["id"])
+
+                if url_res.get("status") == "error":
+                    st.error(f"Failed to fetch content: {url_res.get('error_message')}")
+                else:
+                    meta = url_res.get("metadata", {})
+                    cleaned_txt = url_res.get("cleaned_text", "")
+                    entities = url_res.get("extracted_entities", {})
+                    detected_title = meta.get("title") or ("YouTube Video" if is_yt else "Web Article")
+                    final_title = custom_url_title.strip() or detected_title
+
+                    with st.spinner("Generating AI Summary and Domain Tags..."):
+                        ai_url = process_memory(cleaned_txt[:4000], title=final_title)
+
+                    final_cat = ai_url["category"] if url_cat_choice == "Auto-Detect (AI)" else url_cat_choice
+                    base_tags = [t.strip().lower() for t in url_custom_tags.split(",") if t.strip()] if url_custom_tags.strip() else ai_url["tags"]
+                    source_tag = "youtube" if is_yt else "web_article"
+                    final_tags = list(set(base_tags + [source_tag, "url_ingestion"]))
+
+                    # Prepend source link to description for reference
+                    full_desc = f"Source URL: {url_input.strip()}\nAuthor/Channel: {meta.get('author', 'N/A')}\n\n{cleaned_txt}"
+
+                    saved_mem = MemoryRepository.create_memory(
+                        user_id=user["id"],
+                        title=final_title,
+                        description=full_desc[:6000],
+                        category=final_cat,
+                        summary=ai_url["summary"],
+                        importance=url_imp_level,
+                        tags=final_tags
+                    )
+
+                    st.success(f"🎉 Successfully ingested '{final_title}' into your Vault!")
+                    
+                    if meta.get("thumbnail_url") and is_yt:
+                        st.image(meta["thumbnail_url"], caption=final_title, width=320)
+
+                    with st.expander("📄 View Extracted Content & AI Summary", expanded=True):
+                        st.markdown(f"**Source:** [{url_input.strip()}]({url_input.strip()}) | **Word Count:** `{meta.get('word_count', 0)} words`")
+                        st.markdown(f"**AI Summary:** {ai_url['summary']}")
+                        st.text_area("Extracted Body / Transcript", value=cleaned_txt[:2000] + ("..." if len(cleaned_txt) > 2000 else ""), height=150, disabled=True)
+                        if any(entities.values()):
+                            st.markdown("**Discovered Entities:**")
+                            e_cols = st.columns(4)
+                            with e_cols[0]: st.write("Dates:", entities.get("dates", []))
+                            with e_cols[1]: st.write("Emails:", entities.get("emails", []))
+                            with e_cols[2]: st.write("Phones:", entities.get("phone_numbers", []))
+                            with e_cols[3]: st.write("Amounts:", entities.get("amounts", []))
+                    trigger_celebration_blast()
 
 
 # -----------------------------------------------------------------------------
-# 11. View: Ask My Memory (AI Chatbot)
+# 11. View: Ask My Memory (Conversational RAG Copilot)
 # -----------------------------------------------------------------------------
 def render_ask_memory(user: dict, memories: list[dict]):
-    st.markdown("### 🤖 Ask My Memory (AI Chatbot)")
-    st.caption("Ask natural language questions about all your notes, projects, skills, and documents.")
+    render_section_header(
+        title="Ask My Memory & Intelligence Hub",
+        subtitle="Conversational RAG copilot, multi-document comparative analysis, and synthesized audio voice briefings.",
+        icon="🤖"
+    )
 
-    st.markdown("<p style='font-size: 0.8rem; color: #9CA3AF; margin-bottom: 6px;'>💡 Quick sample questions you can click:</p>", unsafe_allow_html=True)
-    q_col1, q_col2, q_col3 = st.columns(3)
-    sample_to_run = None
-    with q_col1:
-        if st.button("💬 What skills did I use in my projects?", use_container_width=True):
-            sample_to_run = "What skills did I use in my projects?"
-    with q_col2:
-        if st.button("💬 What projects did I complete using Python?", use_container_width=True):
-            sample_to_run = "What projects did I complete using Python?"
-    with q_col3:
-        if st.button("💬 Summarize my recent work notes", use_container_width=True):
-            sample_to_run = "Summarize my recent work notes"
+    tab_chat, tab_compare, tab_podcast = st.tabs([
+        "💬 Conversational RAG Copilot",
+        "⚖️ Multi-Doc Comparative Analyzer",
+        "🎙️ AI Audio Briefing & Podcast"
+    ])
 
-    for msg in st.session_state["chat_messages"]:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+    # ---------------------------------------------------------
+    # TAB 1: CONVERSATIONAL RAG COPILOT
+    # ---------------------------------------------------------
+    with tab_chat:
+        col_filter1, col_filter2 = st.columns([3, 1])
+        with col_filter1:
+            scope_choice = st.selectbox(
+                "🎯 Retrieval Scope",
+                options=["All Categories", "Study", "Work", "Health", "Finance", "Personal", "General"],
+                help="Filter knowledge retrieval to a specific memory domain."
+            )
+        with col_filter2:
+            st.write("")
+            st.write("")
+            if st.button("🗑️ Clear Chat", use_container_width=True):
+                st.session_state["chat_messages"] = [
+                    {"role": "assistant", "content": "Hello! I am your **Smart Memory Vault Copilot**. Ask me anything about your uploaded documents, study notes, YouTube videos, or projects!"}
+                ]
+                st.rerun()
 
-    chat_input = st.chat_input("Ask anything about your memories...") or sample_to_run
+        st.markdown("<p style='font-size: 0.8rem; color: #9CA3AF; margin-bottom: 6px;'>💡 Quick questions to try:</p>", unsafe_allow_html=True)
+        q_col1, q_col2, q_col3 = st.columns(3)
+        sample_to_run = None
+        with q_col1:
+            if st.button("💬 Summarize my latest project notes", use_container_width=True):
+                sample_to_run = "Summarize my latest project notes"
+        with q_col2:
+            if st.button("💬 What key skills and technologies did I use?", use_container_width=True):
+                sample_to_run = "What key skills and technologies did I use?"
+        with q_col3:
+            if st.button("💬 What are my key study concepts or formulas?", use_container_width=True):
+                sample_to_run = "What are my key study concepts or formulas?"
 
-    if chat_input:
-        st.session_state["chat_messages"].append({"role": "user", "content": chat_input})
-        with st.chat_message("user"):
-            st.markdown(chat_input)
+        for msg in st.session_state["chat_messages"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+                if msg.get("citations"):
+                    with st.expander(f"📚 Verified Sources & Citations ({len(msg['citations'])})", expanded=False):
+                        for cit in msg["citations"]:
+                            st.markdown(f"**[{cit['citation_id']}] {cit['title']}** (`{cit['category']}`) — *Match: {cit['confidence']}*")
+                            st.caption(f"> \"{cit['excerpt']}\"")
 
-        with st.chat_message("assistant"):
-            with st.spinner("Searching memories and synthesizing answer..."):
-                searchable = []
-                for m in memories:
-                    m_copy = m.copy()
-                    m_copy["content"] = m.get("description", "")
-                    searchable.append(m_copy)
+        chat_input = st.chat_input("Ask anything across your entire Vault...") or sample_to_run
 
-                matched_memories = search_engine.search(chat_input, searchable, top_k=4)
+        if chat_input:
+            st.session_state["chat_messages"].append({"role": "user", "content": chat_input})
+            with st.chat_message("user"):
+                st.markdown(chat_input)
 
-                if not matched_memories:
-                    response_text = f"I searched across all **{len(memories)} memories** in your vault, but couldn't find a direct match for *'{chat_input}'*. Try asking about Python, projects, certificates, or specific topics."
+            with st.chat_message("assistant"):
+                with st.spinner("🧠 Performing semantic retrieval across vault chunks & synthesizing answer..."):
+                    rag_res = rag_engine.chat(
+                        query=chat_input,
+                        memories=memories,
+                        scope_category=None if scope_choice == "All Categories" else scope_choice
+                    )
+
+                    answer_text = rag_res["answer"]
+                    citations = rag_res.get("citations", [])
+                    conf = rag_res.get("confidence", 0)
+
+                    st.markdown(answer_text)
+
+                    if citations:
+                        with st.expander(f"📚 Verified Sources & Citations ({len(citations)})", expanded=True):
+                            st.markdown(f"**Overall Retrieval Confidence:** `{conf}% Match` | **Category Scope:** `{scope_choice}`")
+                            for cit in citations:
+                                st.markdown(f"**[{cit['citation_id']}] {cit['title']}** (`{cit['category']}`) — *Confidence: {cit['confidence']}*")
+                                st.caption(f"> \"{cit['excerpt']}\"")
+
+                    st.session_state["chat_messages"].append({
+                        "role": "assistant",
+                        "content": answer_text,
+                        "citations": citations
+                    })
+
+    # ---------------------------------------------------------
+    # TAB 2: MULTI-DOC COMPARATIVE ANALYZER
+    # ---------------------------------------------------------
+    with tab_compare:
+        st.markdown("#### ⚖️ Cross-Document & Multi-Note Comparative Analysis")
+        st.caption("Select any two documents or notes to generate an instant comparative synthesis matrix, shared concepts, and key distinctions.")
+
+        if len(memories) < 2:
+            st.info("You need at least 2 memories in your vault to perform comparative analysis.")
+        else:
+            doc_choices = {f"{m.get('title')} ({m.get('category')})": m for m in memories}
+            keys = list(doc_choices.keys())
+
+            col_doc_a, col_doc_b = st.columns(2)
+            with col_doc_a:
+                selected_a = st.selectbox("📄 Document / Memory A:", options=keys, index=0, key="comp_doc_a")
+            with col_doc_b:
+                selected_b = st.selectbox("📄 Document / Memory B:", options=keys, index=min(1, len(keys)-1), key="comp_doc_b")
+
+            if st.button("⚡ Run Comparative Synthesis", type="primary", use_container_width=True):
+                doc_a = doc_choices[selected_a]
+                doc_b = doc_choices[selected_b]
+
+                if doc_a.get("id") == doc_b.get("id"):
+                    st.warning("Please choose two different memories or documents to compare.")
                 else:
-                    q_lower = chat_input.lower()
-                    if "skill" in q_lower or "project" in q_lower:
-                        all_tags = []
-                        for m in matched_memories:
-                            all_tags.extend(m.get("tags", []))
-                        unique_tags = list(dict.fromkeys([t.capitalize() for t in all_tags]))[:8]
+                    tags_a = set(t.lower() for t in (doc_a.get("tags") or []))
+                    tags_b = set(t.lower() for t in (doc_b.get("tags") or []))
+                    shared_tags = tags_a.intersection(tags_b)
 
-                        bullets = "\n".join([f"• **{t}**" for t in (unique_tags or ["Python", "OOP", "File Handling", "Flask", "Regex", "MySQL"])])
-                        matched_titles = ", ".join([f"`{m.get('title')}`" for m in matched_memories[:3]])
+                    words_a = set(re.findall(r'\b[a-zA-Z]{4,}\b', (doc_a.get("description", "") + " " + doc_a.get("summary", "")).lower()))
+                    words_b = set(re.findall(r'\b[a-zA-Z]{4,}\b', (doc_b.get("description", "") + " " + doc_b.get("summary", "")).lower()))
+                    shared_words = [w.title() for w in list(words_a.intersection(words_b)) if w not in quiz_engine.stop_words][:8]
 
-                        response_text = f"""Based on your memories and projects ({matched_titles}), here is what I found:
+                    st.markdown("---")
+                    st.markdown("### 📊 Comparative Analysis Matrix")
 
-**Skills & Technologies Used:**
-{bullets}
+                    col_m1, col_m2 = st.columns(2)
+                    with col_m1:
+                        st.markdown(f"#### 📘 {doc_a.get('title')}")
+                        st.markdown(f"**Category:** `{doc_a.get('category')}` | **Priority:** `{'⭐' * int(doc_a.get('importance', 1))}`")
+                        st.markdown(f"**Summary:** {doc_a.get('summary') or doc_a.get('description', '')[:200]}")
+                        st.markdown(f"**Unique Tags:** {', '.join(list(tags_a - tags_b)) or 'None'}")
 
-**Key Projects Identified:**
-• **Loan Management System** (Built with Python, OOP, loan tracking & reporting)
-• **Student Management System** (Python modules)
-• **Flask REST Architecture** (Lightweight APIs & auth)
-"""
-                    else:
-                        matched_bullets = "\n".join([f"• **{m.get('title')}** ({m.get('category')}): {m.get('summary')}" for m in matched_memories])
-                        response_text = f"""Based on your memories, here is the relevant information:
+                    with col_m2:
+                        st.markdown(f"#### 📙 {doc_b.get('title')}")
+                        st.markdown(f"**Category:** `{doc_b.get('category')}` | **Priority:** `{'⭐' * int(doc_b.get('importance', 1))}`")
+                        st.markdown(f"**Summary:** {doc_b.get('summary') or doc_b.get('description', '')[:200]}")
+                        st.markdown(f"**Unique Tags:** {', '.join(list(tags_b - tags_a)) or 'None'}")
 
-{matched_bullets}
+                    st.markdown("#### 🔗 Synergies & Cross-Connections")
+                    if shared_tags:
+                        st.success(f"**Shared Knowledge Tags:** {', '.join(['#' + t for t in shared_tags])}")
+                    if shared_words:
+                        st.info(f"**Overlapping Domain Concepts:** {', '.join(shared_words)}")
 
-*(Matched from {len(matched_memories)} records in your Vault with semantic relevance)*
-"""
+                    st.markdown(f"""
+                        <div style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 14px 18px; margin-top: 12px;">
+                            <div style="font-weight: 700; color: #C7D2FE; margin-bottom: 4px;">🧠 AI Comparative Synthesis Takeaway:</div>
+                            <div style="font-size: 0.9rem; color: #F1F5F9; line-height: 1.45;">
+                                Combining <strong>{doc_a.get('title')}</strong> with <strong>{doc_b.get('title')}</strong> creates a comprehensive knowledge link bridging 
+                                <em>{doc_a.get('category')}</em> and <em>{doc_b.get('category')}</em>.
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                st.markdown(response_text)
-                st.session_state["chat_messages"].append({"role": "assistant", "content": response_text})
+    # ---------------------------------------------------------
+    # TAB 3: AI AUDIO VOICE BRIEFING & PODCAST
+    # ---------------------------------------------------------
+    with tab_podcast:
+        st.markdown("#### 🎙️ AI Voice Audio Briefing & Daily Podcast")
+        st.caption("Generate and listen to real AI-narrated audio briefings of your vault notes, summaries, and key concepts.")
+
+        if not memories:
+            st.info("Add some notes to your vault to generate an audio briefing.")
+        else:
+            briefing_sources = ["⚡ Entire Vault Executive Digest"] + [f"{m.get('title')} ({m.get('category')})" for m in memories[:10]]
+            selected_source = st.selectbox("Select Audio Topic:", options=briefing_sources, key="podcast_source_sel")
+
+            if selected_source == "⚡ Entire Vault Executive Digest":
+                briefing_script = f"Welcome back to your Smart Memory Vault executive audio briefing. You currently have {len(memories)} indexed records. "
+                for idx, m in enumerate(memories[:4], 1):
+                    summ = m.get("summary") or m.get("description", "")[:100]
+                    briefing_script += f"Item {idx}: {m.get('title')}, classified under {m.get('category')}. Key takeaway: {summ}. "
+                briefing_script += "Keep up your daily active recall and consistency streak!"
+            else:
+                mem_map = {f"{m.get('title')} ({m.get('category')})": m for m in memories}
+                target_mem = mem_map.get(selected_source, memories[0])
+                briefing_script = f"Audio briefing for {target_mem.get('title')}. Category: {target_mem.get('category')}. "
+                briefing_script += f"Summary: {target_mem.get('summary') or target_mem.get('description', '')[:350]}. "
+
+            st.text_area("🎙️ Spoken Script Preview:", value=briefing_script, height=110, disabled=True)
+
+            col_btn1, col_btn2 = st.columns([1.5, 3.5])
+            with col_btn1:
+                gen_audio_btn = st.button("🎧 Synthesize Audio Podcast", type="primary", use_container_width=True)
+
+            if gen_audio_btn or st.session_state.get(f"audio_ready_{selected_source}"):
+                with st.spinner("🎙️ Synthesizing crystal-clear AI narration voice track..."):
+                    try:
+                        from gtts import gTTS
+                        tts = gTTS(text=briefing_script, lang='en', slow=False)
+                        audio_fp = io.BytesIO()
+                        tts.write_to_fp(audio_fp)
+                        audio_fp.seek(0)
+                        audio_bytes = audio_fp.read()
+                        st.session_state[f"audio_ready_{selected_source}"] = audio_bytes
+
+                        st.success("✅ Audio Briefing ready! Hit Play below:")
+                        st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                    except Exception as e:
+                        st.warning(f"Using browser speech engine fallback...")
+                        safe_script = briefing_script.replace('"', '\\"').replace("'", "\\'").replace("\n", " ")
+                        tts_player_html = f"""
+                            <div style="background: linear-gradient(135deg, #1E1B4B 0%, #0F172A 100%); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 14px; margin-top: 10px;">
+                                <button onclick="window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance('{safe_script}'); window.speechSynthesis.speak(u);" style="background: #6366F1; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                                    ▶️ Play Browser Narration
+                                </button>
+                            </div>
+                        """
+                        components.html(tts_player_html, height=70)
 
 
 # -----------------------------------------------------------------------------
 # 12. View: Timeline View
 # -----------------------------------------------------------------------------
 def render_timeline(user: dict, memories: list[dict]):
-    st.markdown("### 🕒 Chronological Timeline")
-    st.caption("Visual progression of all memories, documents, and notes logged over time.")
+    render_section_header(
+        title="Chronological Timeline",
+        subtitle="Visual progression of all memories, documents, and notes logged over time.",
+        icon="🕒"
+    )
 
     if not memories:
         st.info("No timeline data found. Create some memories to see the timeline.")
@@ -1708,8 +2149,11 @@ def render_timeline(user: dict, memories: list[dict]):
 # 13. View: Tags & Categorization
 # -----------------------------------------------------------------------------
 def render_tags(user: dict, memories: list[dict]):
-    st.markdown("### 🏷️ Tags & Topic Intelligence")
-    st.caption("Explore memories organized by auto-extracted and custom topic tags.")
+    render_section_header(
+        title="Tags & Topic Intelligence",
+        subtitle="Explore memories organized by auto-extracted and custom topic tags.",
+        icon="🏷️"
+    )
 
     if not memories:
         st.info("No tags found.")
@@ -1757,8 +2201,11 @@ def render_tags(user: dict, memories: list[dict]):
 # 14. View: Reminders & Priorities
 # -----------------------------------------------------------------------------
 def render_reminders(user: dict, memories: list[dict]):
-    st.markdown("### ⏰ Reminders & Priority Alerts")
-    st.caption("Track critical, high-priority, and time-sensitive knowledge items.")
+    render_section_header(
+        title="Reminders & Priority Alerts",
+        subtitle="Track critical, high-priority, and time-sensitive knowledge items.",
+        icon="⏰"
+    )
 
     high_pri = [m for m in memories if int(m.get("importance", 1)) >= 4]
 
@@ -1788,8 +2235,11 @@ def render_reminders(user: dict, memories: list[dict]):
 # 15. View: Settings & Data Export Center
 # -----------------------------------------------------------------------------
 def render_settings(user: dict, memories: list[dict]):
-    st.markdown("### ⚙️ Vault Settings & Data Export Center")
-    st.caption("Manage your security, download backups in multiple formats, or load demonstration data.")
+    render_section_header(
+        title="Vault Settings & Data Export Center",
+        subtitle="Manage your security, download backups in multiple formats, or load demonstration data.",
+        icon="⚙️"
+    )
 
     stats = get_activity_summary(memories)
 

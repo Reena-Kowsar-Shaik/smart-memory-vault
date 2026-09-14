@@ -1,6 +1,6 @@
 """
 analytics package
-Visualizations, Chronological Timeline, and PDF/CSV/JSON Reporting
+Visualizations, Chronological Timeline, PDF/CSV/JSON Reporting, and Daily Study Streaks
 Role: Member 4 (UI / UX / Analytics)
 """
 
@@ -25,6 +25,11 @@ from .reporter import (
     generate_pdf_report
 )
 
+from .streak_tracker import (
+    calculate_user_streaks,
+    calculate_achievement_badges
+)
+
 __all__ = [
     "CATEGORY_COLORS",
     "get_color_for_category",
@@ -37,5 +42,7 @@ __all__ = [
     "get_activity_summary",
     "export_to_csv",
     "export_to_json",
-    "generate_pdf_report"
+    "generate_pdf_report",
+    "calculate_user_streaks",
+    "calculate_achievement_badges"
 ]

@@ -1,6 +1,6 @@
-# 🧠 Smart Memory Vault (AI-Powered Knowledge & Life Log)
+# 🧠 Smart Memory Vault (AI-Powered Multimodal Knowledge & Life Log)
 
-An intelligent, multi-user personal knowledge vault and study companion. Automatically parses, categorizes, and summarizes notes, code, and document uploads (PDF, DOCX, TXT) with NLP-driven semantic search, interactive neural knowledge graphs, study flashcards, and automated multiple-choice quiz generation.
+An intelligent, multi-user personal knowledge vault, study companion, and multimodal memory assistant. Automatically parses, categorizes, and summarizes notes, documents (PDF, DOCX, TXT), images (OCR), YouTube video transcripts, and web articles with NLP-driven semantic search, interactive neural knowledge graphs, study flashcards, and automated multiple-choice quiz generation.
 
 ---
 
@@ -41,7 +41,7 @@ The app will automatically start and open in your browser at `http://localhost:8
 ---
 
 ## 🧪 Running Automated Unit Tests
-To verify all database, NLP, analytics, and ingestion modules:
+To verify all database, NLP, analytics, and multimodal ingestion modules:
 ```bash
 python -m unittest discover -s . -p "test_*.py"
 ```
@@ -53,8 +53,11 @@ python -m unittest discover -s . -p "test_*.py"
 1. **Dashboard & Analytics:**
    - Real-time memory counters, category breakdown, sentiment analysis, and priority breakdown.
    - One-click executive PDF report export.
-2. **Document Ingestion (Multi-format):**
-   - Upload PDF, DOCX, and TXT files up to 100MB with automated metadata extraction, AI summary generation, and technical tag extraction.
+2. **Multimodal Ingestion Hub:**
+   - **Documents:** PDF, DOCX, TXT, MD up to 100MB with automated metadata and regex entity extraction.
+   - **📸 Image & Handwriting OCR:** Ingest whiteboards, study diagrams, book pages, and certificates with multi-engine OCR (`pytesseract`, `easyocr`, PIL).
+   - **🌐 Web & YouTube Ingestion:** Paste YouTube video links to extract full transcripts or web URLs to scrape clean article text.
+   - **🎙️ Voice Note Recording:** Dictate or upload audio notes with automatic AI processing.
 3. **Interactive Knowledge Mind Map:**
    - Plotly-powered radial network graph connecting vault categories, tags, and individual memory nodes.
 4. **Study Flashcards & Interactive Quiz Engine:**
@@ -82,8 +85,11 @@ smart-memory-vault/
 │   └── logger.py               # Centralized logging engine
 │
 ├── pipeline/
-│   ├── uploader.py             # File upload handler (PDF, DOCX, TXT up to 100MB)
-│   └── extractor.py            # Text & metadata extraction engine
+│   ├── uploader.py             # File upload handler (PDF, DOCX, TXT, Images up to 100MB)
+│   ├── extractor.py            # Text & metadata extraction router
+│   ├── ocr_extractor.py        # Multi-engine Optical Character Recognition (OCR)
+│   ├── web_extractor.py        # YouTube transcript & web article scraper
+│   └── regex_cleaner.py        # PII & regex entity extraction (dates, emails, phones, amounts)
 │
 ├── nlp_engine/
 │   ├── categorizer.py          # Auto-categorization & CS domain tag extraction

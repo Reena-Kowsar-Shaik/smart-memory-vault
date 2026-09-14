@@ -102,6 +102,39 @@ class TestNLPEngine(unittest.TestCase):
         self.assertEqual(result["category"], "Work")
 
 
+    def test_11_flashcard_and_quiz_generation(self):
+        """Test flashcard and quiz generator produces rich study materials"""
+        from nlp_engine import quiz_engine
+        sample_memories = [
+            {
+                "id": 1,
+                "title": "Flask REST Architecture",
+                "description": "Notes on building lightweight REST APIs with Flask: Blueprints, SQLAlchemy ORM, and JWT authentication.",
+                "summary": "Technical guide on Flask REST architecture, ORM integration, and auth tokens.",
+                "category": "Study"
+            },
+            {
+                "id": 2,
+                "title": "Machine Learning Overview",
+                "description": "Generative AI, LLM fine-tuning, and Vector Database RAG pipelines for contextual retrieval.",
+                "summary": "AI pipeline guide for RAG architectures.",
+                "category": "Study"
+            }
+        ]
+        content_text = "\n\n".join([f"{m['title']}\n{m['description']}\n{m['summary']}" for m in sample_memories])
+        
+        cards = quiz_engine.generate_flashcards(content_text, title="Vault Master Deck", memories=sample_memories)
+        quiz = quiz_engine.generate_quiz(content_text, title="Vault Master Deck", memories=sample_memories)
+
+        self.assertGreaterEqual(len(cards), 5)
+        self.assertGreaterEqual(len(quiz), 2)
+        for card in cards:
+            self.assertTrue(len(card["front"]) > 0)
+            self.assertTrue(len(card["back"]) > 0)
+            self.assertTrue(len(card["concept"]) > 0)
+
+
 if __name__ == "__main__":
     print("\n[TEST] Running Member 3 NLP Engine Test Suite...\n" + "=" * 50)
     unittest.main(verbosity=2)
+

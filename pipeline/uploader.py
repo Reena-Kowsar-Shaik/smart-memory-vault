@@ -4,8 +4,11 @@ import hashlib
 from pathlib import Path
 from typing import Tuple, Dict, Any
 
-# Supported extensions and maximum upload size (100 MB)
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+# Supported extensions (Docs & Images) and maximum upload size (100 MB)
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".docx", ".txt", ".md",
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"
+}
 MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
 STORAGE_BASE_DIR = Path("storage")
 
@@ -23,7 +26,7 @@ def validate_file(filename: str, file_size: int) -> Tuple[bool, str]:
     """Validates file format and size limits."""
     ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        return False, f"Unsupported format '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        return False, f"Unsupported format '{ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
     if file_size > MAX_FILE_SIZE_BYTES:
         return False, f"File exceeds maximum size of {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB."
     if file_size == 0:

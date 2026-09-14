@@ -8,6 +8,8 @@ from .sentiment import SentimentAndImportanceEngine
 from .summarizer import TextSummarizer
 from .search_engine import SemanticSearchEngine
 from .quiz_generator import StudyQuizEngine
+from .rag_engine import VaultRAGEngine
+from .voice_transcriber import VoiceTranscriber, voice_transcriber
 
 # Instantiate singleton engines
 categorizer = MemoryCategorizer()
@@ -15,6 +17,7 @@ sentiment_engine = SentimentAndImportanceEngine()
 summarizer = TextSummarizer()
 search_engine = SemanticSearchEngine()
 quiz_engine = StudyQuizEngine()
+rag_engine = VaultRAGEngine()
 
 def process_memory(text: str, title: str = "") -> dict:
     """

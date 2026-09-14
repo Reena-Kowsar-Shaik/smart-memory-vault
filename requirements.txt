@@ -1,4 +1,4 @@
-﻿streamlit
+streamlit
 plotly
 pandas
 fpdf2
@@ -12,3 +12,11 @@ python-docx
 nltk
 scikit-learn
 sentence-transformers
+Pillow
+pytesseract
+requests
+beautifulsoup4
+trafilatura
+youtube-transcript-api
+SpeechRecognition
+gTTS
