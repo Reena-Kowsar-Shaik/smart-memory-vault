@@ -192,8 +192,11 @@ CUSTOM_CSS = """
         font-weight: 500;
     }
 
-    /* Button Enhancements */
-    div.stButton > button {
+    /* Button Enhancements & Pointer Cursor */
+    button,
+    div.stButton > button,
+    [data-testid="stButton"] button,
+    [data-testid="baseButton-secondary"] {
         border-radius: 10px;
         font-weight: 700;
         font-size: 0.88rem;
@@ -202,22 +205,63 @@ CUSTOM_CSS = """
         border: 1px solid rgba(255, 255, 255, 0.12);
         background: linear-gradient(145deg, #1E293B, #0F172A);
         color: #F1F5F9;
+        cursor: pointer !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px);
         border-color: #6366F1;
         box-shadow: 0 6px 18px -3px rgba(99, 102, 241, 0.4);
         color: #FFFFFF;
+        cursor: pointer !important;
     }
-    div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #6366F1 0%, #4F46E5 50%, #4338CA 100%) !important;
-        border: 1px solid rgba(165, 180, 252, 0.4) !important;
+    /* Primary & Form Submit Buttons - Vibrant Blue */
+    div.stButton > button[kind="primary"],
+    div[data-testid="stFormSubmitButton"] > button,
+    button[kind="primary"],
+    button[kind="primaryFormSubmit"],
+    button[data-testid="baseButton-primary"],
+    button[data-testid="baseButton-primaryFormSubmit"] {
+        background: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%) !important;
+        border: 1px solid rgba(147, 197, 253, 0.5) !important;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+        box-shadow: 0 4px 18px rgba(37, 99, 235, 0.45) !important;
+        cursor: pointer !important;
     }
-    div.stButton > button[kind="primary"]:hover {
-        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.55) !important;
+    div.stButton > button[kind="primary"]:hover,
+    div[data-testid="stFormSubmitButton"] > button:hover,
+    button[kind="primary"]:hover,
+    button[kind="primaryFormSubmit"]:hover,
+    button[data-testid="baseButton-primary"]:hover,
+    button[data-testid="baseButton-primaryFormSubmit"]:hover {
+        background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%) !important;
+        box-shadow: 0 8px 28px rgba(59, 130, 246, 0.65) !important;
         transform: translateY(-2px);
+        cursor: pointer !important;
+    }
+
+    /* Pointer (hand symbol cursor) for all Navigation, Selectboxes, Dropdowns & Interactive elements */
+    div[data-testid="stSelectbox"],
+    div[data-testid="stSelectbox"] *,
+    div[data-baseweb="select"],
+    div[data-baseweb="select"] *,
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] *,
+    li[role="option"],
+    li[role="option"] *,
+    ul[role="listbox"] li,
+    ul[role="listbox"] li *,
+    .stTabs [data-baseweb="tab"],
+    .stTabs [role="tab"],
+    div[data-testid="stRadio"] label,
+    div[data-testid="stRadio"] label *,
+    div[data-testid="stCheckbox"] label,
+    div[data-testid="stCheckbox"] label *,
+    div[data-testid="stFileUploader"] section,
+    .kpi-card,
+    a,
+    summary,
+    [role="button"] {
+        cursor: pointer !important;
     }
 
     /* Tabs Styling */
@@ -258,16 +302,109 @@ CUSTOM_CSS = """
         border-color: #818CF8;
         box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
     }
-    .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
+    /* Text & Password Inputs: Clean single outer colored border with no inner border */
+    div[data-testid="stTextInput"] > div[data-baseweb="base-input"],
+    div[data-testid="stTextInput"] > div[data-baseweb="input"],
+    div[data-testid="stTextArea"] > div[data-baseweb="textarea"] {
         background-color: #0F172A !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border: 1.5px solid #3B82F6 !important;
         border-radius: 10px !important;
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.2) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    div[data-testid="stTextInput"] input,
+    .stTextInput input,
+    div[data-testid="stTextArea"] textarea,
+    .stTextArea textarea {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
         color: #F8FAFC !important;
         font-size: 0.9rem !important;
     }
-    .stTextInput input:focus, .stTextArea textarea:focus {
-        border-color: #6366F1 !important;
-        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3) !important;
+    div[data-testid="stTextInput"] button {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #94A3B8 !important;
+    }
+    .stSelectbox div[data-baseweb="select"] {
+        background-color: #0F172A !important;
+        border: 1.5px solid #3B82F6 !important;
+        border-radius: 10px !important;
+        color: #F8FAFC !important;
+        font-size: 0.9rem !important;
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.2) !important;
+    }
+    div[data-testid="stTextInput"] > div[data-baseweb="base-input"]:focus-within,
+    div[data-testid="stTextInput"] > div[data-baseweb="input"]:focus-within,
+    div[data-testid="stTextArea"] > div[data-baseweb="textarea"]:focus-within {
+        border-color: #60A5FA !important;
+        box-shadow: 0 0 14px rgba(96, 165, 250, 0.45) !important;
+    }
+    .stSelectbox div[data-baseweb="select"]:focus-within {
+        border-color: #60A5FA !important;
+        box-shadow: 0 0 12px rgba(96, 165, 250, 0.4) !important;
+    }
+
+    /* All Field & Search Labels without Left Color Border */
+    div[data-testid="stTextInput"] label,
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stTextArea"] label {
+        color: #93C5FD !important;
+        font-weight: 700 !important;
+        font-size: 0.86rem !important;
+        letter-spacing: 0.02em !important;
+        border-left: none !important;
+        padding-left: 0px !important;
+        margin-bottom: 4px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+
+    /* Hide 'Press Enter to submit form' helper instructions in forms and password/text inputs */
+    [data-testid="InputInstructions"],
+    div[data-testid="InputInstructions"],
+    span[data-testid="InputInstructions"],
+    small[data-testid="InputInstructions"],
+    div[data-testid="stTextInput"] small,
+    div[data-testid="stForm"] small,
+    .stTextInput small,
+    [data-testid="stWidgetLabel"] + div small {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0px !important;
+        opacity: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 0px !important;
+        pointer-events: none !important;
+    }
+
+    /* Chat Input Bar with clean Blue Border and no inner border */
+    div[data-testid="stChatInput"] {
+        border-radius: 14px !important;
+    }
+    div[data-testid="stChatInput"] > div {
+        border: 1.5px solid #3B82F6 !important;
+        border-radius: 14px !important;
+        background-color: #0F172A !important;
+        box-shadow: 0 0 12px rgba(59, 130, 246, 0.25) !important;
+    }
+    div[data-testid="stChatInput"] div[data-baseweb="base-input"],
+    div[data-testid="stChatInput"] div[data-baseweb="textarea"],
+    div[data-testid="stChatInput"] textarea {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+        color: #F8FAFC !important;
+    }
+    div[data-testid="stChatInput"]:focus-within > div,
+    div[data-testid="stChatInput"] > div:focus-within {
+        border-color: #60A5FA !important;
+        box-shadow: 0 0 16px rgba(96, 165, 250, 0.45) !important;
     }
 
     /* Memory Card Modern Styles */
@@ -641,38 +778,306 @@ def seed_sample_data(user_id: int):
 # 4. Authentication View (Login / Register / Demo User)
 # -----------------------------------------------------------------------------
 def render_auth_view():
-    col_left, col_right = st.columns([1.15, 0.85], gap="large")
+    st.markdown("""
+        <style>
+            /* 1. Eliminate all Streamlit header, decoration & toolbar space */
+            header[data-testid="stHeader"], [data-testid="stHeader"], div[data-testid="stDecoration"], div[data-testid="stToolbar"], footer {
+                display: none !important;
+                height: 0px !important;
+                min-height: 0px !important;
+                padding: 0px !important;
+                margin: 0px !important;
+                visibility: hidden !important;
+            }
+
+            /* 2. Lock viewport rigidly with zero scroll motion */
+            html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main {
+                overflow: hidden !important;
+                overflow-y: hidden !important;
+                overflow-x: hidden !important;
+                height: 100vh !important;
+                max-height: 100vh !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                touch-action: none !important;
+                overscroll-behavior: none !important;
+            }
+
+            /* 3. Center block-container perfectly in the middle of the viewport */
+            .main .block-container, [data-testid="stMainBlockContainer"], div[data-testid="stAppViewBlockContainer"] {
+                padding-top: 0px !important;
+                padding-bottom: 0px !important;
+                padding-left: 2rem !important;
+                padding-right: 2rem !important;
+                margin: 0 auto !important;
+                max-width: 1400px !important;
+                height: 100vh !important;
+                max-height: 100vh !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
+            }
+
+            .main .block-container > div[data-testid="stVerticalBlock"] {
+                width: 100% !important;
+                gap: 0 !important;
+                justify-content: center !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+
+            div[data-testid="stHorizontalBlock"] {
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            /* 4. Hide all scrollbars */
+            ::-webkit-scrollbar {
+                display: none !important;
+                width: 0px !important;
+                height: 0px !important;
+            }
+            * {
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+            }
+
+            /* 5. Rich, Large, High-Visibility Form Styling for Sign In & Demo */
+            div[data-testid="stForm"] {
+                background: rgba(15, 23, 42, 0.75) !important;
+                border: 1.5px solid rgba(99, 102, 241, 0.4) !important;
+                border-radius: 16px !important;
+                padding: 16px 20px !important;
+                margin-top: 6px !important;
+                box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.15) !important;
+            }
+            div[data-testid="stForm"] div[data-testid="stTextInput"] {
+                margin-bottom: 8px !important;
+            }
+            /* Outer container gets the single colored border for both text and password inputs */
+            div[data-testid="stForm"] div[data-testid="stTextInput"] > div[data-baseweb="base-input"],
+            div[data-testid="stForm"] div[data-testid="stTextInput"] > div[data-baseweb="input"] {
+                border-radius: 10px !important;
+                border: 1.8px solid #3B82F6 !important;
+                background-color: #0F172A !important;
+                box-shadow: 0 0 8px rgba(59, 130, 246, 0.2) !important;
+                height: 48px !important;
+                transition: all 0.2s ease-in-out !important;
+            }
+            div[data-testid="stForm"] div[data-testid="stTextInput"] > div[data-baseweb="base-input"]:focus-within,
+            div[data-testid="stForm"] div[data-testid="stTextInput"] > div[data-baseweb="input"]:focus-within {
+                border-color: #60A5FA !important;
+                box-shadow: 0 0 14px rgba(96, 165, 250, 0.45) !important;
+            }
+            /* Inner input element: NO border, transparent background, no shadow */
+            div[data-testid="stForm"] div[data-testid="stTextInput"] input {
+                font-size: 1.05rem !important;
+                padding: 10px 14px !important;
+                height: 44px !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                background: transparent !important;
+                color: #F8FAFC !important;
+            }
+            /* Eye button in password input: transparent background and no border */
+            div[data-testid="stForm"] div[data-testid="stTextInput"] button {
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                background: transparent !important;
+                color: #94A3B8 !important;
+            }
+            div[data-testid="stForm"] div[data-testid="stTextInput"] label {
+                font-size: 0.95rem !important;
+                margin-bottom: 4px !important;
+                border-left: none !important;
+                padding-left: 0px !important;
+                color: #93C5FD !important;
+                font-weight: 700 !important;
+            }
+            div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button,
+            div[data-testid="stForm"] button[kind="primary"],
+            div[data-testid="stForm"] button[kind="primaryFormSubmit"],
+            div[data-testid="stForm"] button[data-testid="baseButton-primaryFormSubmit"],
+            div.stButton > button[kind="primary"] {
+                background: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%) !important;
+                border: 1px solid rgba(147, 197, 253, 0.5) !important;
+                color: #FFFFFF !important;
+                box-shadow: 0 4px 18px rgba(37, 99, 235, 0.45) !important;
+                font-size: 1.05rem !important;
+                padding: 12px 24px !important;
+                border-radius: 12px !important;
+                font-weight: 800 !important;
+                letter-spacing: 0.02em !important;
+                margin-top: 6px !important;
+                cursor: pointer !important;
+            }
+            div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:hover,
+            div[data-testid="stForm"] button[kind="primary"]:hover,
+            div[data-testid="stForm"] button[kind="primaryFormSubmit"]:hover,
+            div[data-testid="stForm"] button[data-testid="baseButton-primaryFormSubmit"]:hover,
+            div.stButton > button[kind="primary"]:hover {
+                background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%) !important;
+                box-shadow: 0 8px 28px rgba(59, 130, 246, 0.65) !important;
+                transform: translateY(-2px);
+                color: #FFFFFF !important;
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                padding-bottom: 6px !important;
+                gap: 8px !important;
+            }
+            .stTabs [data-baseweb="tab"] {
+                padding: 8px 18px !important;
+                font-size: 0.96rem !important;
+                font-weight: 700 !important;
+            }
+
+            /* 6. Targeted Balanced Spacing & Single Outer Border Specifically for Create Account */
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) {
+                padding: 8px 18px 10px 18px !important;
+                margin-top: 2px !important;
+                border-radius: 12px !important;
+                width: 100% !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) [data-testid="stVerticalBlock"] {
+                gap: 4px !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] {
+                margin-top: 2px !important;
+                margin-bottom: 6px !important;
+                padding-top: 0px !important;
+                padding-bottom: 0px !important;
+                width: 100% !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] > div[data-baseweb="base-input"],
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] > div[data-baseweb="input"] {
+                height: 32px !important;
+                min-height: 32px !important;
+                border-radius: 8px !important;
+                border: 1.5px solid #3B82F6 !important;
+                background-color: #0F172A !important;
+                margin-top: 3px !important;
+                margin-bottom: 2px !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] input {
+                height: 30px !important;
+                font-size: 0.86rem !important;
+                padding: 2px 10px !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                background: transparent !important;
+                color: #F8FAFC !important;
+                width: 100% !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] button {
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                background: transparent !important;
+                color: #94A3B8 !important;
+                height: 30px !important;
+                padding: 0 6px !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] label {
+                font-size: 0.78rem !important;
+                margin-top: 2px !important;
+                margin-bottom: 2px !important;
+                padding-top: 0px !important;
+                padding-bottom: 0px !important;
+                line-height: 1.2 !important;
+                border-left: none !important;
+                padding-left: 0px !important;
+                color: #93C5FD !important;
+                font-weight: 700 !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stTextInput"] label p {
+                font-size: 0.78rem !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                line-height: 1.2 !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stFormSubmitButton"] > button,
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) button[kind="primary"],
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) button[kind="primaryFormSubmit"],
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) button[data-testid="baseButton-primaryFormSubmit"] {
+                background: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%) !important;
+                border: 1px solid rgba(147, 197, 253, 0.5) !important;
+                color: #FFFFFF !important;
+                box-shadow: 0 4px 18px rgba(37, 99, 235, 0.45) !important;
+                height: 36px !important;
+                padding: 4px 14px !important;
+                font-size: 0.90rem !important;
+                border-radius: 8px !important;
+                margin-top: 6px !important;
+                margin-bottom: 0px !important;
+                width: 100% !important;
+                cursor: pointer !important;
+            }
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) div[data-testid="stFormSubmitButton"] > button:hover,
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) button[kind="primary"]:hover,
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) button[kind="primaryFormSubmit"]:hover,
+            div[data-testid="stForm"]:has(input[placeholder*="reena_vault"]) button[data-testid="baseButton-primaryFormSubmit"]:hover {
+                background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 50%, #2563EB 100%) !important;
+                box-shadow: 0 8px 28px rgba(59, 130, 246, 0.65) !important;
+                transform: translateY(-2px);
+                color: #FFFFFF !important;
+            }
+            /* Hide 'Press Enter to submit form' instruction labels */
+            [data-testid="InputInstructions"],
+            div[data-testid="InputInstructions"],
+            span[data-testid="InputInstructions"],
+            small[data-testid="InputInstructions"],
+            div[data-testid="stTextInput"] small,
+            div[data-testid="stForm"] small,
+            .stTextInput small {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0px !important;
+                opacity: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                font-size: 0px !important;
+                pointer-events: none !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col_left, col_right = st.columns([1.10, 1.05], gap="large")
 
     with col_left:
         hero_left_html = """
-            <div style="padding: 10px 0 20px 0;">
-                <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 9999px; padding: 6px 16px; font-size: 0.84rem; font-weight: 700; color: #A5B4FC; margin-bottom: 16px;">
+            <div style="padding: 0 10px 0 0;">
+                <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.5); border-radius: 9999px; padding: 6px 16px; font-size: 0.88rem; font-weight: 700; color: #C7D2FE; margin-bottom: 12px; box-shadow: 0 0 15px rgba(99, 102, 241, 0.25);">
                     ✨ AI-Powered Neural Second Brain
                 </div>
-                <h1 style="font-size: 2.7rem; font-weight: 800; line-height: 1.15; color: #FFFFFF; margin: 0 0 14px 0; letter-spacing: -0.02em;">
+                <h1 style="font-size: 2.55rem; font-weight: 800; line-height: 1.16; color: #FFFFFF; margin: 0 0 12px 0; letter-spacing: -0.02em;">
                     Never Forget.<br>
-                    <span style="background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #F472B6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Instant AI Intelligence</span> Across All Your Knowledge.
+                    <span style="background: linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #F472B6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Instant AI Intelligence</span><br>Across All Your Knowledge.
                 </h1>
-                <p style="font-size: 1.02rem; color: #94A3B8; line-height: 1.55; margin-bottom: 22px;">
-                    Effortlessly capture voice notes, PDFs, YouTube transcripts, OCR whiteboard photos, and study materials. Smart Memory Vault auto-summarizes, categorizes, tags, and lets you chat with your entire knowledge universe.
+                <p style="font-size: 1.02rem; color: #94A3B8; line-height: 1.5; margin-bottom: 18px;">
+                    Effortlessly capture voice notes, PDFs, YouTube transcripts, OCR notes, and study materials. Auto-summarize, categorize, tag, and chat with your entire knowledge universe.
                 </p>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px;">
-                    <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(168, 85, 247, 0.35); border-left: 4px solid #A855F7; border-radius: 10px; padding: 12px 14px;">
-                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🎙️ Live Voice Recording</div>
-                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Direct mic dictation with instant speech-to-text intelligence</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(17, 24, 39, 0.95) 100%); border: 1px solid rgba(168, 85, 247, 0.4); border-left: 4px solid #A855F7; border-radius: 12px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);">
+                        <div style="font-size: 1.02rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🎙️ Live Voice Recording</div>
+                        <div style="font-size: 0.86rem; color: #94A3B8; line-height: 1.35;">Direct mic dictation with instant speech-to-text intelligence</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 4px solid #EF4444; border-radius: 10px; padding: 12px 14px;">
-                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🎬 YouTube Ingestion</div>
-                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Auto-extract video transcripts, timestamps & key takeaways</div>
+                    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(17, 24, 39, 0.95) 100%); border: 1px solid rgba(239, 68, 68, 0.4); border-left: 4px solid #EF4444; border-radius: 12px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);">
+                        <div style="font-size: 1.02rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🎬 YouTube Ingestion</div>
+                        <div style="font-size: 0.86rem; color: #94A3B8; line-height: 1.35;">Auto-extract video transcripts, timestamps & key takeaways</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(6, 182, 212, 0.35); border-left: 4px solid #06B6D4; border-radius: 10px; padding: 12px 14px;">
-                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🖼️ Image & OCR Scanner</div>
-                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Extract text from handwritten study notes & whiteboard photos</div>
+                    <div style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(17, 24, 39, 0.95) 100%); border: 1px solid rgba(6, 182, 212, 0.4); border-left: 4px solid #06B6D4; border-radius: 12px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);">
+                        <div style="font-size: 1.02rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🖼️ Image & OCR Scanner</div>
+                        <div style="font-size: 0.86rem; color: #94A3B8; line-height: 1.35;">Extract text from handwritten study notes & whiteboard photos</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(17, 24, 39, 0.9) 100%); border: 1px solid rgba(99, 102, 241, 0.35); border-left: 4px solid #6366F1; border-radius: 10px; padding: 12px 14px;">
-                        <div style="font-size: 0.95rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🤖 Conversational RAG</div>
-                        <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.35;">Semantic chat assistant with verified citation sources</div>
+                    <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(17, 24, 39, 0.95) 100%); border: 1px solid rgba(99, 102, 241, 0.4); border-left: 4px solid #6366F1; border-radius: 12px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);">
+                        <div style="font-size: 1.02rem; font-weight: 700; color: #F8FAFC; margin-bottom: 3px;">🤖 Conversational RAG</div>
+                        <div style="font-size: 0.86rem; color: #94A3B8; line-height: 1.35;">Semantic chat assistant with verified citation sources</div>
                     </div>
                 </div>
             </div>
@@ -681,10 +1086,9 @@ def render_auth_view():
 
     with col_right:
         render_html("""
-            <div style="text-align: center; margin-bottom: 12px; padding: 10px 0;">
-                <div style="display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 54px; background: linear-gradient(135deg, #6366F1, #A855F7); border-radius: 16px; font-size: 1.8rem; margin-bottom: 10px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);">🧠</div>
-                <h2 style="font-size: 1.6rem; font-weight: 800; color: #FFFFFF; margin: 0 0 4px 0;">Access Your Vault</h2>
-                <p style="font-size: 0.88rem; color: #94A3B8; margin: 0;">Sign in to continue or launch the instant demo</p>
+            <div style="text-align: center; margin-bottom: 8px; padding: 0;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: linear-gradient(135deg, #6366F1, #A855F7); border-radius: 14px; font-size: 1.75rem; margin-bottom: 4px; box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);">🧠</div>
+                <h2 style="font-size: 1.70rem; font-weight: 800; color: #FFFFFF; margin: 0; letter-spacing: -0.01em;">Access Your Vault</h2>
             </div>
         """)
 
@@ -712,8 +1116,8 @@ def render_auth_view():
             with st.form("register_form"):
                 reg_username = st.text_input("Username", placeholder="e.g. reena_vault")
                 reg_email = st.text_input("Email Address", placeholder="reena@example.com")
-                reg_pass = st.text_input("Password (min 6 chars)", type="password")
-                reg_pass_conf = st.text_input("Confirm Password", type="password")
+                reg_pass = st.text_input("Password", type="password", placeholder="Min 6 characters")
+                reg_pass_conf = st.text_input("Confirm Password", type="password", placeholder="Confirm password")
                 submit_reg = st.form_submit_button("Create Account", use_container_width=True, type="primary")
 
                 if submit_reg:
@@ -728,9 +1132,9 @@ def render_auth_view():
 
         with tab_demo:
             st.markdown(textwrap.dedent("""
-                <div style="background: rgba(99, 102, 241, 0.1); border: 1px dashed rgba(99, 102, 241, 0.4); border-radius: 10px; padding: 12px; margin-bottom: 12px;">
-                    <div style="font-weight: 700; color: #A5B4FC; font-size: 0.88rem; margin-bottom: 2px;">⚡ One-Click Instant Access</div>
-                    <div style="font-size: 0.78rem; color: #94A3B8;">Jump directly into the live Vault preloaded with sample study notes, PDFs, voice recordings, and analytics.</div>
+                <div style="background: rgba(99, 102, 241, 0.12); border: 1px dashed rgba(99, 102, 241, 0.45); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;">
+                    <div style="font-weight: 700; color: #C7D2FE; font-size: 0.95rem; margin-bottom: 3px;">⚡ One-Click Instant Access</div>
+                    <div style="font-size: 0.86rem; color: #94A3B8; line-height: 1.4;">Jump directly into the live Vault preloaded with sample study notes, PDFs, voice recordings, and analytics.</div>
                 </div>
             """), unsafe_allow_html=True)
             if st.button("🚀 Launch Instant Demo Mode", use_container_width=True, type="primary"):
@@ -783,20 +1187,18 @@ def render_sidebar(user: dict, memories: list[dict]):
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
                 <div style="background: linear-gradient(135deg, #6366F1, #8B5CF6); width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);">🧠</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.18rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">Memory Vault</h3>
-                    <p style="margin: 0; font-size: 0.74rem; color: #94A3B8;">Intelligent Knowledge OS</p>
+                    <h3 style="margin: 0; font-size: 1.22rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">Memory Vault</h3>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
         st.markdown(f"""
-            <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.7); border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; backdrop-filter: blur(8px);">
-                <div style="font-size: 0.88rem; font-weight: 700; color: #F1F5F9;">👤 {user['username']}</div>
-                <div style="font-size: 0.74rem; color: #94A3B8;">{user['email']}</div>
+            <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(139, 92, 246, 0.22) 50%, rgba(15, 23, 42, 0.95) 100%); border: 1.5px solid rgba(129, 140, 248, 0.6); border-left: 4px solid #818CF8; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);">
+                <div style="font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #C7D2FE; margin-bottom: 3px;">👑 Vault Owner</div>
+                <div style="font-size: 1.02rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em; margin-bottom: 2px;">👤 {user['username']}</div>
+                <div style="font-size: 0.76rem; color: #93C5FD; font-weight: 600; word-break: break-all;">✉️ {user['email']}</div>
             </div>
         """, unsafe_allow_html=True)
-
-        st.markdown("<p style='font-size: 0.72rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 6px;'>Main Navigation</p>", unsafe_allow_html=True)
 
         nav_items = [
             ("🏠 Dashboard", "Dashboard"),
@@ -1899,13 +2301,12 @@ def render_ask_memory(user: dict, memories: list[dict]):
         col_filter1, col_filter2 = st.columns([3, 1])
         with col_filter1:
             scope_choice = st.selectbox(
-                "🎯 Retrieval Scope",
+                "Retrieval Scope",
                 options=["All Categories", "Study", "Work", "Health", "Finance", "Personal", "General"],
-                help="Filter knowledge retrieval to a specific memory domain."
+                help="Filter knowledge retrieval to a specific memory domain.",
+                label_visibility="collapsed"
             )
         with col_filter2:
-            st.write("")
-            st.write("")
             if st.button("🗑️ Clear Chat", use_container_width=True):
                 st.session_state["chat_messages"] = [
                     {"role": "assistant", "content": "Hello! I am your **Smart Memory Vault Copilot**. Ask me anything about your uploaded documents, study notes, YouTube videos, or projects!"}
@@ -1967,6 +2368,7 @@ def render_ask_memory(user: dict, memories: list[dict]):
                         "content": answer_text,
                         "citations": citations
                     })
+                    st.rerun()
 
     # ---------------------------------------------------------
     # TAB 2: MULTI-DOC COMPARATIVE ANALYZER
@@ -2048,18 +2450,16 @@ def render_ask_memory(user: dict, memories: list[dict]):
             selected_source = st.selectbox("Select Audio Topic:", options=briefing_sources, key="podcast_source_sel")
 
             if selected_source == "⚡ Entire Vault Executive Digest":
-                briefing_script = f"Welcome back to your Smart Memory Vault executive audio briefing. You currently have {len(memories)} indexed records. "
-                for idx, m in enumerate(memories[:4], 1):
-                    summ = m.get("summary") or m.get("description", "")[:100]
-                    briefing_script += f"Item {idx}: {m.get('title')}, classified under {m.get('category')}. Key takeaway: {summ}. "
-                briefing_script += "Keep up your daily active recall and consistency streak!"
+                briefing_script = summarizer.generate_vault_digest_narrative(memories)
             else:
                 mem_map = {f"{m.get('title')} ({m.get('category')})": m for m in memories}
                 target_mem = mem_map.get(selected_source, memories[0])
-                briefing_script = f"Audio briefing for {target_mem.get('title')}. Category: {target_mem.get('category')}. "
-                briefing_script += f"Summary: {target_mem.get('summary') or target_mem.get('description', '')[:350]}. "
-
-            st.text_area("🎙️ Spoken Script Preview:", value=briefing_script, height=110, disabled=True)
+                target_content = target_mem.get("description", "") or target_mem.get("content", "") or target_mem.get("summary", "")
+                briefing_script = summarizer.generate_podcast_narrative(
+                    title=target_mem.get("title", "Note"),
+                    category=target_mem.get("category", "General"),
+                    content=target_content
+                )
 
             col_btn1, col_btn2 = st.columns([1.5, 3.5])
             with col_btn1:

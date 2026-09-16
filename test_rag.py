@@ -67,8 +67,8 @@ class TestVaultRAGEngine(unittest.TestCase):
 
     def test_chat_end_to_end(self):
         response = self.rag.chat("What are my workout days and protein intake?", self.sample_memories)
-        self.assertIn("Direct Answer", response["answer"])
-        self.assertIn("Sources & Citations", response["answer"])
+        self.assertIn("Core Overview", response["answer"])
+        self.assertIn("Sources &", response["answer"])
         self.assertEqual(response["top_source"], "Gym & Diet Routine")
 
     def test_empty_vault_query(self):
