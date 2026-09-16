@@ -310,21 +310,64 @@ CUSTOM_CSS = """
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     }
 
-    /* Flashcard Study Styles */
-    .flashcard-frame {
-        background: linear-gradient(145deg, rgba(30, 27, 75, 0.95), rgba(15, 23, 42, 0.98));
-        border: 1.5px solid rgba(99, 102, 241, 0.6);
-        border-radius: 18px;
-        padding: 28px 32px;
+    /* Flashcard 3D Interactive Flip Card Styles */
+    .flashcard-scene {
+        perspective: 1400px;
+        width: 100%;
+        margin: 16px 0;
+        cursor: pointer;
+        user-select: none;
+    }
+    .flashcard-card {
+        position: relative;
+        width: 100%;
+        min-height: 220px;
+        transform-style: preserve-3d;
+        -webkit-transform-style: preserve-3d;
+        transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+        display: grid;
+        grid-template-areas: "cardface";
+        border-radius: 20px;
+    }
+    .flashcard-card.is-flipped {
+        transform: rotateY(180deg);
+    }
+    @keyframes cardFlipTurnOver {
+        0% {
+            transform: rotateY(0deg);
+        }
+        100% {
+            transform: rotateY(180deg);
+        }
+    }
+    .flashcard-card.anim-flip {
+        animation: cardFlipTurnOver 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .flashcard-face {
+        grid-area: cardface;
+        border-radius: 20px;
+        padding: 30px 34px;
         text-align: center;
-        min-height: 150px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        box-shadow: 0 12px 35px -5px rgba(99, 102, 241, 0.4);
-        margin: 14px 0;
-        transition: all 0.3s ease;
+        box-sizing: border-box;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        min-height: 220px;
+    }
+    .flashcard-front {
+        background: linear-gradient(145deg, rgba(30, 27, 75, 0.95), rgba(15, 23, 42, 0.98));
+        border: 1.5px solid rgba(99, 102, 241, 0.6);
+        box-shadow: 0 14px 40px -6px rgba(99, 102, 241, 0.45);
+        transform: rotateY(0deg);
+    }
+    .flashcard-back {
+        background: linear-gradient(145deg, rgba(14, 42, 65, 0.97), rgba(15, 23, 42, 0.98));
+        border: 1.5px solid rgba(56, 189, 248, 0.7);
+        box-shadow: 0 14px 40px -6px rgba(56, 189, 248, 0.45);
+        transform: rotateY(180deg);
     }
     .flashcard-topic-badge {
         font-size: 0.8rem;
@@ -336,15 +379,20 @@ CUSTOM_CSS = """
         padding: 4px 14px;
         border-radius: 20px;
         letter-spacing: 0.08em;
-        margin-bottom: 12px;
+        margin-bottom: 14px;
         display: inline-block;
     }
+    .flashcard-topic-badge.back-badge {
+        color: #7DD3FC;
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid rgba(56, 189, 248, 0.5);
+    }
     .flashcard-main-text {
-        font-size: 1.2rem;
+        font-size: 1.25rem;
         font-weight: 700;
         color: #FFFFFF;
-        line-height: 1.5;
-        max-width: 700px;
+        line-height: 1.55;
+        max-width: 720px;
     }
     .flashcard-hint {
         font-size: 0.82rem;
@@ -417,8 +465,119 @@ def render_html(html_str: str):
     st.markdown("\n".join(clean_lines), unsafe_allow_html=True)
 
 
-def trigger_celebration_blast(balloons: bool = True):
-    """Triggers high-energy confetti cannon particle fireworks blast and balloons."""
+def trigger_paper_rain_shower(duration_sec: int = 3):
+    """Triggers a light, gentle celebratory paper confetti rain shower falling from top to bottom for duration_sec seconds (3s) with fewer papers."""
+    rain_html = f"""
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script>
+        (function() {{
+            var doc = document;
+            var win = window;
+            try {{
+                if (window.parent && window.parent.document) {{
+                    doc = window.parent.document;
+                    win = window.parent;
+                }}
+            }} catch (e) {{
+                doc = document;
+                win = window;
+            }}
+
+            var existingCanvas = doc.getElementById('paper-rain-shower-canvas');
+            if (existingCanvas) {{
+                try {{ existingCanvas.remove(); }} catch(e) {{}}
+            }}
+
+            var canvas = doc.createElement('canvas');
+            canvas.id = 'paper-rain-shower-canvas';
+            canvas.style.position = 'fixed';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100vw';
+            canvas.style.height = '100vh';
+            canvas.style.pointerEvents = 'none';
+            canvas.style.zIndex = '999999999';
+            doc.body.appendChild(canvas);
+
+            function updateSize() {{
+                canvas.width = win.innerWidth || doc.documentElement.clientWidth || 1920;
+                canvas.height = win.innerHeight || doc.documentElement.clientHeight || 1080;
+            }}
+            updateSize();
+            win.addEventListener('resize', updateSize);
+
+            var cFunc = (win.confetti) ? win.confetti : ((typeof confetti !== 'undefined') ? confetti : null);
+            if (!cFunc && typeof confetti !== 'undefined') cFunc = confetti;
+
+            if (!cFunc) return;
+
+            var confettiEngine = cFunc.create(canvas, {{
+                resize: true,
+                useWorker: true
+            }});
+
+            var duration = {duration_sec} * 1000;
+            var endTime = Date.now() + duration;
+            var lastSpawn = 0;
+
+            var paperColors = [
+                '#FF1744', '#F50057', '#D500F9', '#651FFF', '#3D5AFE',
+                '#2979FF', '#00B0FF', '#00E5FF', '#1DE9B6', '#00E676',
+                '#76FF03', '#C6FF00', '#FFEA00', '#FFC400', '#FF9100',
+                '#FF3D00', '#EC4899', '#8B5CF6', '#10B981', '#38BDF8',
+                '#E11D48', '#FFD700', '#A855F7', '#06B6D4', '#FB7185'
+            ];
+
+            function runRainShower() {{
+                var now = Date.now();
+                var remaining = endTime - now;
+
+                if (remaining <= 0) {{
+                    win.removeEventListener('resize', updateSize);
+                    setTimeout(function() {{
+                        try {{ canvas.remove(); }} catch(e) {{}}
+                    }}, 2500);
+                    return;
+                }}
+
+                // Dense, highly vibrant colorful paper rain shower falling smoothly
+                if (now - lastSpawn > 50) {{
+                    lastSpawn = now;
+                    confettiEngine({{
+                        particleCount: 5,
+                        angle: 270,
+                        spread: 120,
+                        startVelocity: 15,
+                        origin: {{ x: Math.random(), y: -0.1 }},
+                        gravity: 0.8,
+                        drift: (Math.random() - 0.5) * 1.5,
+                        scalar: 1.15,
+                        shapes: ['square'],
+                        colors: paperColors,
+                        ticks: 360
+                    }});
+                }}
+
+                requestAnimationFrame(runRainShower);
+            }}
+
+            requestAnimationFrame(runRainShower);
+        }})();
+    </script>
+    """
+    try:
+        components.html(rain_html, height=1, width=1)
+    except Exception:
+        pass
+
+
+def trigger_paper_blast(duration_sec: int = 3):
+    """Alias for paper celebration effect."""
+    trigger_paper_rain_shower(duration_sec=duration_sec)
+
+
+def trigger_celebration_blast(balloons: bool = False):
+    """Triggers high-energy confetti cannon particle fireworks blast."""
     if balloons:
         st.balloons()
     confetti_html = """
@@ -426,8 +585,19 @@ def trigger_celebration_blast(balloons: bool = True):
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <script>
         function launchFireworksBlast() {
+            var doc = document;
+            var win = window;
+            try {
+                if (window.parent && window.parent.document) {
+                    doc = window.parent.document;
+                    win = window.parent;
+                }
+            } catch (e) {
+                doc = document;
+                win = window;
+            }
             var targetWin = window.parent || window;
-            var cFunc = (targetWin.confetti) ? targetWin.confetti : confetti;
+            var cFunc = (targetWin.confetti) ? targetWin.confetti : ((typeof confetti !== 'undefined') ? confetti : null);
             
             if (cFunc) {
                 // High-velocity center explosive blast
@@ -1181,18 +1351,28 @@ def render_study_quiz(user: dict, memories: list[dict]):
                 text=f"Card {idx + 1} of {len(cards)} | Mastered: {len(st.session_state['mastered_cards'])}/{len(all_cards)}"
             )
 
-            # Flashcard Display
-            is_flipped = st.session_state["fc_flipped"]
-            card_title = "💡 EXPLANATION & CONTEXT" if is_flipped else f"❓ {card.get('topic', 'Concept')}: {card['concept']}"
-            card_text = card["back"] if is_flipped else card["front"]
-            card_hint = "Click 'Flip Card' to reveal the explanation" if not is_flipped else "Click 'Flip Card' to view question again"
+            # Flashcard Display with 3D Flip Mechanics
+            is_flipped = st.session_state.get("fc_flipped", False)
+            flipped_class = "is-flipped anim-flip" if is_flipped else ""
 
             mastered_indicator = ' <span style="color: #4ADE80; font-size: 0.8rem; margin-left: 8px;">★ MASTERED</span>' if is_mastered else ''
+            front_badge = f"❓ {card.get('topic', 'Concept')}: {card['concept']}{mastered_indicator}"
+            back_badge = f"💡 EXPLANATION & CONTEXT{mastered_indicator}"
+
             fc_html = f"""
-                <div class="flashcard-frame">
-                    <div class="flashcard-topic-badge">{card_title}{mastered_indicator}</div>
-                    <div class="flashcard-main-text">{card_text}</div>
-                    <div class="flashcard-hint">{card_hint}</div>
+                <div class="flashcard-scene" onclick="var c=this.querySelector('.flashcard-card'); if(c){{c.classList.remove('anim-flip'); c.classList.toggle('is-flipped');}}">
+                    <div class="flashcard-card {flipped_class}">
+                        <div class="flashcard-face flashcard-front">
+                            <div class="flashcard-topic-badge">{front_badge}</div>
+                            <div class="flashcard-main-text">{card['front']}</div>
+                            <div class="flashcard-hint">🔄 Click card or 'Flip Card' below to reveal explanation</div>
+                        </div>
+                        <div class="flashcard-face flashcard-back">
+                            <div class="flashcard-topic-badge back-badge">{back_badge}</div>
+                            <div class="flashcard-main-text">{card['back']}</div>
+                            <div class="flashcard-hint">🔄 Click card or 'Flip Card' below to view question again</div>
+                        </div>
+                    </div>
                 </div>
             """
             render_html(fc_html)
@@ -1204,7 +1384,8 @@ def render_study_quiz(user: dict, memories: list[dict]):
                     st.session_state["fc_flipped"] = False
                     st.rerun()
             with fc2:
-                if st.button("🔄 Flip Card", use_container_width=True, type="primary"):
+                flip_btn_label = "🔄 Flip Card (Show Question)" if is_flipped else "🔄 Flip Card (Show Answer)"
+                if st.button(flip_btn_label, use_container_width=True, type="primary"):
                     st.session_state["fc_flipped"] = not st.session_state["fc_flipped"]
                     st.rerun()
             with fc3:
@@ -1283,8 +1464,23 @@ def render_study_quiz(user: dict, memories: list[dict]):
                     st.caption(f"💡 {q['explanation']}")
 
                 score_pct = int((correct_count / len(quiz_questions)) * 100)
-                if score_pct >= 80:
-                    trigger_celebration_blast()
+
+                if score_pct == 100:
+                    # Trigger 3-second gentle paper rain shower with fewer papers only when all answers are correct
+                    trigger_paper_rain_shower(duration_sec=3)
+                    st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(6, 182, 212, 0.2) 100%);
+                                    border: 2px solid #10B981; border-radius: 16px; padding: 22px; margin: 18px 0; text-align: center;
+                                    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.25);">
+                            <div style="font-size: 2.2rem; margin-bottom: 6px;">🎉 🏆 🌟</div>
+                            <h2 style="color: #4ADE80; margin: 0 0 8px 0; font-weight: 800; font-size: 1.6rem;">PERFECT SCORE! 100% ACCURACY!</h2>
+                            <p style="color: #E2E8F0; margin: 0; font-size: 1.1rem; font-weight: 600;">
+                                Outstanding mastery! You answered all <span style="color: #4ADE80; font-weight: 800;">{correct_count} of {len(quiz_questions)}</span> questions correctly!
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    st.success(f"🌟 Perfect Score! You scored **{correct_count}/{len(quiz_questions)} (100%)**! Knowledge completely mastered.")
+                elif score_pct >= 80:
                     st.success(f"🏆 Outstanding! You scored **{correct_count}/{len(quiz_questions)} ({score_pct}%)**! Knowledge mastered.")
                 elif score_pct >= 50:
                     st.info(f"👍 Good effort! You scored **{correct_count}/{len(quiz_questions)} ({score_pct}%)**. Review the cards and test again!")
@@ -1799,7 +1995,6 @@ def render_add_memory(user: dict):
                             with e_cols[1]: st.write("Emails:", entities.get("emails", []))
                             with e_cols[2]: st.write("Phones:", entities.get("phone_numbers", []))
                             with e_cols[3]: st.write("Amounts:", entities.get("amounts", []))
-                    st.balloons()
                     trigger_celebration_blast(balloons=False)
 
     with tab_url:
